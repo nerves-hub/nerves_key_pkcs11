@@ -27,7 +27,7 @@ If using it with Elixir, add a dependency to your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:nerves_key, "~> 0.1.0"}
+    {:nerves_key_pkcs11, "~> 0.1.0"}
   ]
 end
 ```
@@ -49,20 +49,17 @@ sudo apt install libengine-pkcs11-openssl1.1
 
 Erlang's `crypto` application provides an API for loading OpenSSL engines. See
 [the Erlang crypto User's Guide](http://erlang.org/doc/apps/crypto/engine_load.html)
-for details on this feature. I use the `dynamic` engine to load `libpkcs11.so`
-which in turn loads this PKCS #11 implementation. Here's and example call in
-Elixir:
+for details on this feature. `NervesKey.PKCS11.load_engine/0` is a helper method
+to make the `:crypto.engine_load/3` call for you. It uses OpenSSL's `dynamic`
+engine to load `libpkcs11.so` which in turn loads this PKCS #11 implementation.
+Here's an example call in Elixir:
 
 ```elixir
-{:ok, engine} =
-  :crypto.engine_load(
-    "dynamic",
-    [{"SO_PATH", "/usr/lib/engines-1.1/libpkcs11.so"}, {"ID", "pkcs11"}, "LOAD"],
-    [{"MODULE_PATH", "nerves_key_pkcs11.so")}]
-  )
+{:ok, engine} = NervesKey.PKCS11.load_engine()
 ```
 
-Update the path to `libpkcs11.so` and `nerves_key_pkcs11.so` for your system.
+If this doesn't work, you'll likely have to look at the implentation of
+`load_engine/0` and fine tune the shared library paths or control commands.
 
 After you load the engine, you'll eventually want to use it. The intended use
 case is for delegate the ECDSA operation to the ATECC508A for use with TLS
@@ -72,10 +69,13 @@ options, you'll have something like this:
 
 ```elixir
 [
-  key: %{algorithm: :ecdsa, engine: engine, key_id: "pkcs11:id=0;type=private"},
+  key: NervesKey.PKCS11.private_key(engine),
   certfile: "device-cert.pem",
 ]
 ```
+
+The `NervesKey.PKCS11.private_key/1` helper method will create the appropriate
+map so that Erlang's `:crypto` library can properly call into OpenSSL.
 
 ## License
 
