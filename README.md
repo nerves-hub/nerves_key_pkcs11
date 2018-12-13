@@ -1,5 +1,8 @@
 # NervesKey.PKCS11
 
+[![CircleCI](https://circleci.com/gh/nerves-hub/nerves_key_pkcs11.svg?style=svg)](https://circleci.com/gh/nerves-hub/nerves_key_pkcs11)
+[![Hex version](https://img.shields.io/hexpm/v/nerves_key_pkcs11.svg "Hex version")](https://hex.pm/packages/nerves_key_pkcs11)
+
 This is a minimal implementation of [PKCS #11](https://en.wikipedia.org/wiki/PKCS_11)
 for interacting with the NervesKey.  The NervesKey is a specific configuration
 of the ATECC508A/ATECC608A chips that holds one private key in slot 0. If you're
