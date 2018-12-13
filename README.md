@@ -74,4 +74,7 @@ options, you'll have something like this:
 ]
 ```
 
+## License
 
+The Elixir and most C code is licensed under the Apache License 2.0. See
+`pkcs11.h` for its license.
