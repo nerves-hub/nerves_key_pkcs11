@@ -1,4 +1,4 @@
-defmodule NervesKeyPkcs11.MixProject do
+defmodule NervesKey.PKCS11.MixProject do
   use Mix.Project
 
   def project do
@@ -6,23 +6,41 @@ defmodule NervesKeyPkcs11.MixProject do
       app: :nerves_key_pkcs11,
       version: "0.1.0",
       elixir: "~> 1.7",
+      description: description(),
+      package: package(),
+      compilers: [:elixir_make | Mix.compilers()],
+      make_clean: ["clean"],
+      docs: [extras: ["README.md"]],
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]
   end
 
-  # Run "mix help compile.app" to learn about applications.
-  def application do
-    [
-      extra_applications: [:logger]
-    ]
+  def application, do: []
+
+  defp description do
+    "PKCS #11 module for using the NervesKey"
   end
 
-  # Run "mix help deps" to learn about dependencies.
+  defp package do
+    %{
+      files: [
+        "lib",
+        "src/*.[ch]",
+        "mix.exs",
+        "README.md",
+        "LICENSE",
+        "Makefile"
+      ],
+      licenses: ["Apache-2.0"],
+      links: %{"GitHub" => "https://github.com/nerves-hub/nerves_key_pkcs11"}
+    }
+  end
+
   defp deps do
     [
-      # {:dep_from_hexpm, "~> 0.3.0"},
-      # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"},
+      {:elixir_make, "~> 0.4", runtime: false},
+      {:ex_doc, "~> 0.19", only: [:dev, :test], runtime: false}
     ]
   end
 end

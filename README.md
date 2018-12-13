@@ -39,7 +39,7 @@ To use this with OpenSSL, you'll need `libpkcs11.so`. This library comes from
 Debian systems by running:
 
 ```sh
-sudo apt install opensc-pkcs11
+sudo apt install libengine-pkcs11-openssl1.1
 ```
 
 ## Invocation from Erlang and Elixir
