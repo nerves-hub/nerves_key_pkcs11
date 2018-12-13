@@ -27,7 +27,7 @@ install_system_deps: &install_system_deps
     name: Install system dependencies
     command: |
       apt update
-      apt install -y unzip
+      apt install -y unzip libengine-pkcs11-openssl1.1
 
 version: 2
 
@@ -47,6 +47,7 @@ jobs:
       - run: mix test
       - run: mix docs
       - run: mix dialyzer --halt-exit-status
+      - run: mix hex.build
       - save_cache:
           key: v1-mix-cache-{{ checksum "mix.lock" }}
           paths:
