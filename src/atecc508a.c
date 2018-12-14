@@ -49,34 +49,35 @@ static int microsleep(int microseconds)
     return nanosleep(&ts, NULL);
 }
 
-static int i2c_transfer(int fd,
-                        uint8_t addr,
-                        const uint8_t *to_write, size_t to_write_len,
-                        uint8_t *to_read, size_t to_read_len)
+static int i2c_read(int fd, uint8_t addr, uint8_t *to_read, size_t to_read_len)
 {
     struct i2c_rdwr_ioctl_data data;
-    struct i2c_msg msgs[2];
+    struct i2c_msg msg;
 
-    msgs[0].addr = addr;
-    msgs[0].flags = 0;
-    msgs[0].len = (uint16_t) to_write_len;
-    msgs[0].buf = (uint8_t *) to_write;
-
-    msgs[1].addr = addr;
-    msgs[1].flags = I2C_M_RD;
-    msgs[1].len = (uint16_t) to_read_len;
-    msgs[1].buf = to_read;
-
-    if (to_write_len != 0)
-        data.msgs = &msgs[0];
-    else
-        data.msgs = &msgs[1];
-
-    data.nmsgs = (to_write_len != 0 && to_read_len != 0) ? 2 : 1;
+    msg.addr = addr;
+    msg.flags = I2C_M_RD;
+    msg.len = (uint16_t) to_read_len;
+    msg.buf = to_read;
+    data.msgs = &msg;
+    data.nmsgs = 1;
 
     return ioctl(fd, I2C_RDWR, &data);
 }
 
+static int i2c_write(int fd, uint8_t addr, const uint8_t *to_write, size_t to_write_len)
+{
+    struct i2c_rdwr_ioctl_data data;
+    struct i2c_msg msg;
+
+    msg.addr = addr;
+    msg.flags = 0;
+    msg.len = (uint16_t) to_write_len;
+    msg.buf = (uint8_t *) to_write;
+    data.msgs = &msg;
+    data.nmsgs = 1;
+
+    return ioctl(fd, I2C_RDWR, &data);
+}
 
 int atecc508a_open(const char *filename)
 {
@@ -96,14 +97,14 @@ int atecc508a_wakeup(int fd)
     // Since only 8-bits get through, the I2C speed needs to be < 133 KHz for
     // this to work.
     uint8_t zero = 0;
-    i2c_transfer(fd, 0, &zero, 1, NULL, 0);
+    i2c_write(fd, 0, &zero, 1);
 
     // Wait for the device to wake up for real
     microsleep(ATECC508A_WAKE_DELAY_US);
 
     // Check that it's awake by reading its signature
     uint8_t buffer[4];
-    if (i2c_transfer(fd, ATECC508A_ADDR, NULL, 0, buffer, sizeof(buffer)) < 0)
+    if (i2c_read(fd, ATECC508A_ADDR, buffer, sizeof(buffer)) < 0)
         return -1;
 
     if (buffer[0] != 0x04 ||
@@ -119,7 +120,7 @@ int atecc508a_sleep(int fd)
 {
     // See ATECC508A 6.2 for the sleep sequence.
     uint8_t sleep = 0x01;
-    if (i2c_transfer(fd, ATECC508A_ADDR, &sleep, 1, NULL, 0) < 0)
+    if (i2c_write(fd, ATECC508A_ADDR, &sleep, 1) < 0)
         return -1;
 
     return 0;
@@ -130,11 +131,11 @@ static int atecc508a_get_addr(uint8_t zone, uint16_t slot, uint8_t block, uint8_
     switch (zone) {
     case ATECC508A_ZONE_CONFIG:
     case ATECC508A_ZONE_OTP:
-        *addr = (block << 3) + (offset & 7);
+        *addr = (uint16_t) (block << 3) + (offset & 7);
         return 0;
 
     case ATECC508A_ZONE_DATA:
-        *addr = (block << 8) + (slot << 3) + (offset & 7);
+        *addr = (uint16_t) ((block << 8) + (slot << 3) + (offset & 7));
         return 0;
 
     default:
@@ -197,14 +198,14 @@ int atecc508a_read_zone(int fd, uint8_t zone, uint16_t slot, uint8_t block, uint
 
     atecc508a_crc(&msg[1]);
 
-    if (i2c_transfer(fd, ATECC508A_ADDR, msg, sizeof(msg), NULL, 0) < 0)
+    if (i2c_write(fd, ATECC508A_ADDR, msg, sizeof(msg)) < 0)
         return -1;
 
     // Wait for read to be available
     microsleep(5000);
 
     uint8_t response[32 + 3];
-    if (i2c_transfer(fd, ATECC508A_ADDR, NULL, 0, response, len + 3) < 0)
+    if (i2c_read(fd, ATECC508A_ADDR, response, len + 3) < 0)
         return -1;
 
     // Check length
@@ -271,14 +272,14 @@ int atecc508a_derive_public_key(int fd, uint8_t slot, uint8_t *key)
 
     atecc508a_crc(&msg[1]);
 
-    if (i2c_transfer(fd, ATECC508A_ADDR, msg, sizeof(msg), NULL, 0) < 0)
+    if (i2c_write(fd, ATECC508A_ADDR, msg, sizeof(msg)) < 0)
         return -1;
 
     // Wait for the public key to be available
     microsleep(115000);
 
     uint8_t response[64 + 3];
-    if (i2c_transfer(fd, ATECC508A_ADDR, NULL, 0, response, sizeof(response)) < 0)
+    if (i2c_read(fd, ATECC508A_ADDR, response, sizeof(response)) < 0)
         return -1;
 
     // Check length
@@ -323,14 +324,14 @@ int atecc508a_sign(int fd, uint8_t slot, const uint8_t *data, uint8_t *signature
 
     atecc508a_crc(&msg[1]);
 
-    if (i2c_transfer(fd, ATECC508A_ADDR, msg, msg[1] + 1, NULL, 0) < 0)
+    if (i2c_write(fd, ATECC508A_ADDR, msg, msg[1] + 1) < 0)
         return -1;
 
     // Wait for the data to be stored
     microsleep(7000);
 
     uint8_t response[64 + 3];
-    if (i2c_transfer(fd, ATECC508A_ADDR, NULL, 0, response, 4) < 0) {
+    if (i2c_read(fd, ATECC508A_ADDR, response, 4) < 0) {
         INFO("Didn't receive response to Nonce cmd");
         return -1;
     }
@@ -349,7 +350,7 @@ int atecc508a_sign(int fd, uint8_t slot, const uint8_t *data, uint8_t *signature
     msg[5] = 0;     // KeyID MSB
     atecc508a_crc(&msg[1]);
 
-    if (i2c_transfer(fd, ATECC508A_ADDR, msg, msg[1] + 1, NULL, 0) < 0) {
+    if (i2c_write(fd, ATECC508A_ADDR, msg, msg[1] + 1) < 0) {
         INFO("Error signing TempKey");
         return -1;
     }
@@ -357,7 +358,7 @@ int atecc508a_sign(int fd, uint8_t slot, const uint8_t *data, uint8_t *signature
     // Wait for the signature
     microsleep(100000);
 
-    if (i2c_transfer(fd, ATECC508A_ADDR, NULL, 0, response, 64 + 3) < 0) {
+    if (i2c_read(fd, ATECC508A_ADDR, response, 64 + 3) < 0) {
         INFO("Didn't receive response from sign cmd");
         return -1;
     }
