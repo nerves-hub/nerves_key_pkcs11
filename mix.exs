@@ -32,7 +32,7 @@ defmodule NervesKey.PKCS11.MixProject do
         "LICENSE",
         "Makefile"
       ],
-      licenses: ["Apache-2.0"],
+      licenses: ["BSD-2-Clause"],
       links: %{"GitHub" => "https://github.com/nerves-hub/nerves_key_pkcs11"}
     }
   end

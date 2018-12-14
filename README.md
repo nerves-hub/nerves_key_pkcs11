@@ -79,5 +79,22 @@ map so that Erlang's `:crypto` library can properly call into OpenSSL.
 
 ## License
 
-The Elixir and most C code is licensed under the Apache License 2.0. See
-`pkcs11.h` for its license.
+The Elixir and most C code is licensed under the 2-Clause BSD License.
+
+The header file for the PKCS #11 function prototypes and structures, `pkcs11.h`,
+has the following license:
+
+```text
+/* pkcs11.h
+   Copyright 2006, 2007 g10 Code GmbH
+   Copyright 2006 Andreas Jellinghaus
+
+   This file is free software; as a special exception the author gives
+   unlimited permission to copy and/or distribute it, with or without
+   modifications, as long as this notice is preserved.
+
+   This file is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY, to the extent permitted by law; without even
+   the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+   PURPOSE.  */
+```

@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2018 Frank Hunleth
  * Copyright (c) 2014-2016 Yubico AB
  * All rights reserved.
  *
