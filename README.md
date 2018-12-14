@@ -77,6 +77,14 @@ options, you'll have something like this:
 The `NervesKey.PKCS11.private_key/1` helper method will create the appropriate
 map so that Erlang's `:crypto` library can properly call into OpenSSL.
 
+## Sharing the NervesKey
+
+If you have other code using the NervesKey, it might conflict with this library. There's
+no lock file or mechanism to keep more than one process from accessing the ATECC508A
+chip simultaneously. This is not expected to be an issue at runtime since the main
+reason to access the NervesKey in another process is to provision it and that's not
+something one would do when trying to use this library to assist a TLS negotation.
+
 ## License
 
 The Elixir and most C code is licensed under the 2-Clause BSD License.
