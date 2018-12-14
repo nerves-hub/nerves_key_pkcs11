@@ -14,6 +14,7 @@
    limitations under the License.
 */
 
+#include <errno.h>
 #include <fcntl.h>
 #include <string.h>
 #include <stdlib.h>
@@ -41,12 +42,38 @@
 #define ATECC508A_ADDR 0x60
 #define ATECC508A_WAKE_DELAY_US 1500
 
+// The ATECC508A/608A have different times for how long to wait for commands to complete.
+// Unless I'm totally misreading the datasheet (Table 9-4), it really seems like those are too short.
+// See https://github.com/MicrochipTech/cryptoauthlib/blob/master/lib/atca_execution.c#L98 for
+// another opinion on execution times.
+//
+// I'm taking the "typical" time from the datasheet and the "max" time from the longest
+// I see on the 508A/608A in atca_execution.c or the datasheet.
+#define ATECC508A_CHECKMAC_TYPICAL_US     5000
+#define ATECC508A_CHECKMAC_MAX_US        40000
+#define ATECC508A_DERIVE_KEY_TYPICAL_US   2000
+#define ATECC508A_DERIVE_KEY_MAX_US      50000
+#define ATECC508A_ECDH_TYPICAL_US        38000
+#define ATECC508A_ECDH_MAX_US           531000
+#define ATECC508A_GENKEY_TYPICAL_US      11000
+#define ATECC508A_GENKEY_MAX_US         653000
+#define ATECC508A_NONCE_TYPICAL_US         100
+#define ATECC508A_NONCE_MAX_US           29000
+#define ATECC508A_READ_TYPICAL_US          100
+#define ATECC508A_READ_MAX_US             5000
+#define ATECC508A_SIGN_TYPICAL_US        42000
+#define ATECC508A_SIGN_MAX_US           665000
+
 static int microsleep(int microseconds)
 {
     struct timespec ts;
     ts.tv_sec = 0;
     ts.tv_nsec = microseconds * 1000;
-    return nanosleep(&ts, NULL);
+    int rc;
+
+    while ((rc = nanosleep(&ts, &ts)) < 0 && errno == EINTR);
+
+    return rc;
 }
 
 static int i2c_read(int fd, uint8_t addr, uint8_t *to_read, size_t to_read_len)
@@ -77,6 +104,25 @@ static int i2c_write(int fd, uint8_t addr, const uint8_t *to_write, size_t to_wr
     data.nmsgs = 1;
 
     return ioctl(fd, I2C_RDWR, &data);
+}
+
+static int i2c_poll_read(int fd, uint8_t addr, uint8_t *to_read, size_t to_read_len, int min_us, int max_us)
+{
+    int amount_slept = min_us;
+    int poll_interval = 1000;
+    int rc;
+
+    microsleep(min_us);
+
+    do {
+        rc = i2c_read(fd, addr, to_read, to_read_len);
+        if (rc >= 0)
+            break;
+
+        microsleep(poll_interval);
+        amount_slept += poll_interval;
+    } while (amount_slept <= max_us);
+    return rc;
 }
 
 int atecc508a_open(const char *filename)
@@ -180,7 +226,7 @@ static void atecc508a_crc(uint8_t *data)
  * @param len how much to read (4 or 32 bytes)
  * @return 0 on success
  */
-int atecc508a_read_zone(int fd, uint8_t zone, uint16_t slot, uint8_t block, uint8_t offset, uint8_t *data, uint8_t len)
+static int atecc508a_read_zone_nowake(int fd, uint8_t zone, uint16_t slot, uint8_t block, uint8_t offset, uint8_t *data, uint8_t len)
 {
     uint16_t addr;
 
@@ -201,11 +247,8 @@ int atecc508a_read_zone(int fd, uint8_t zone, uint16_t slot, uint8_t block, uint
     if (i2c_write(fd, ATECC508A_ADDR, msg, sizeof(msg)) < 0)
         return -1;
 
-    // Wait for read to be available
-    microsleep(5000);
-
     uint8_t response[32 + 3];
-    if (i2c_read(fd, ATECC508A_ADDR, response, len + 3) < 0)
+    if (i2c_poll_read(fd, ATECC508A_ADDR, response, len + 3, ATECC508A_READ_TYPICAL_US, ATECC508A_READ_MAX_US) < 0)
         return -1;
 
     // Check length
@@ -235,15 +278,20 @@ int atecc508a_read_zone(int fd, uint8_t zone, uint16_t slot, uint8_t block, uint
  */
 int atecc508a_read_serial(int fd, uint8_t *serial_number)
 {
+    if (atecc508a_wakeup(fd) < 0)
+        return -1;
+
     // Read the config -> try 2 times just in case there's a hiccup on the I2C bus
     uint8_t buffer[32];
-    if (atecc508a_read_zone(fd, ATECC508A_ZONE_CONFIG, 0, 0, 0, buffer, 32) < 0 &&
-            atecc508a_read_zone(fd, ATECC508A_ZONE_CONFIG, 0, 0, 0, buffer, 32) < 0)
+    if (atecc508a_read_zone_nowake(fd, ATECC508A_ZONE_CONFIG, 0, 0, 0, buffer, 32) < 0 &&
+            atecc508a_read_zone_nowake(fd, ATECC508A_ZONE_CONFIG, 0, 0, 0, buffer, 32) < 0)
         return -1;
 
     // Copy out the serial number (see datasheet for offsets)
     memcpy(&serial_number[0], &buffer[0], 4);
     memcpy(&serial_number[4], &buffer[8], 5);
+
+    atecc508a_sleep(fd);
     return 0;
 }
 
@@ -260,6 +308,9 @@ int atecc508a_derive_public_key(int fd, uint8_t slot, uint8_t *key)
     // Send a GenKey command to derive the public key from a previously stored private key
     uint8_t msg[11];
 
+    if (atecc508a_wakeup(fd) < 0)
+        return -1;
+
     msg[0] = 3;    // "word address"
     msg[1] = 10;   // 10 byte message
     msg[2] = 0x40; // GenKey opcode
@@ -272,30 +323,37 @@ int atecc508a_derive_public_key(int fd, uint8_t slot, uint8_t *key)
 
     atecc508a_crc(&msg[1]);
 
-    if (i2c_write(fd, ATECC508A_ADDR, msg, sizeof(msg)) < 0)
+    if (i2c_write(fd, ATECC508A_ADDR, msg, sizeof(msg)) < 0) {
+        INFO("Error from i2c_write for GenKey %d", slot);
         return -1;
-
-    // Wait for the public key to be available
-    microsleep(115000);
+    }
 
     uint8_t response[64 + 3];
-    if (i2c_read(fd, ATECC508A_ADDR, response, sizeof(response)) < 0)
+    if (i2c_poll_read(fd, ATECC508A_ADDR, response, sizeof(response), ATECC508A_GENKEY_TYPICAL_US, ATECC508A_GENKEY_MAX_US) < 0) {
+        INFO("Read failed for genkey response");
         return -1;
+    }
 
     // Check length
-    if (response[0] != 64 + 3)
+    if (response[0] != 64 + 3) {
+        INFO("Unexpected response length 0x%02x", response[0]);
         return -1;
+    }
 
     // Check the CRC
     uint8_t got_crc[2];
     got_crc[0] = response[64 + 1];
     got_crc[1] = response[64 + 2];
     atecc508a_crc(response);
-    if (got_crc[0] != response[64 + 1] || got_crc[1] != response[64 + 2])
+    if (got_crc[0] != response[64 + 1] || got_crc[1] != response[64 + 2]) {
+        INFO("CRC error on genkey");
         return -1;
+    }
 
     // Copy the data (bytes after the count field)
     memcpy(key, &response[1], 64);
+
+    atecc508a_sleep(fd);
 
     return 0;
 }
@@ -314,6 +372,9 @@ int atecc508a_sign(int fd, uint8_t slot, const uint8_t *data, uint8_t *signature
     // Send a Nonce command to load the data into TempKey
     uint8_t msg[40];
 
+    if (atecc508a_wakeup(fd) < 0)
+        return -1;
+
     msg[0] = 3;    // "word address"
     msg[1] = 39;   // Length
     msg[2] = 0x16; // Nonce opcode
@@ -327,11 +388,8 @@ int atecc508a_sign(int fd, uint8_t slot, const uint8_t *data, uint8_t *signature
     if (i2c_write(fd, ATECC508A_ADDR, msg, msg[1] + 1) < 0)
         return -1;
 
-    // Wait for the data to be stored
-    microsleep(7000);
-
     uint8_t response[64 + 3];
-    if (i2c_read(fd, ATECC508A_ADDR, response, 4) < 0) {
+    if (i2c_poll_read(fd, ATECC508A_ADDR, response, 4, ATECC508A_NONCE_TYPICAL_US, ATECC508A_NONCE_MAX_US) < 0) {
         INFO("Didn't receive response to Nonce cmd");
         return -1;
     }
@@ -355,10 +413,7 @@ int atecc508a_sign(int fd, uint8_t slot, const uint8_t *data, uint8_t *signature
         return -1;
     }
 
-    // Wait for the signature
-    microsleep(100000);
-
-    if (i2c_read(fd, ATECC508A_ADDR, response, 64 + 3) < 0) {
+    if (i2c_poll_read(fd, ATECC508A_ADDR, response, 64 + 3, ATECC508A_SIGN_TYPICAL_US, ATECC508A_SIGN_MAX_US) < 0) {
         INFO("Didn't receive response from sign cmd");
         return -1;
     }
@@ -381,6 +436,8 @@ int atecc508a_sign(int fd, uint8_t slot, const uint8_t *data, uint8_t *signature
 
     // Copy the data (bytes after the count field)
     memcpy(signature, &response[1], 64);
+
+    atecc508a_sleep(fd);
 
     return 0;
 }
