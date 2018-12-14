@@ -35,31 +35,12 @@
 #include <stdio.h>
 
 #include "atecc508a.h"
+#include "log.h"
 
 #define CRYTOKI_VERSION { CRYPTOKI_VERSION_MAJOR, CRYPTOKI_VERSION_MINOR * 10 + CRYPTOKI_VERSION_REVISION }
 #define NKCS11_VERSION_MAJOR 0
 #define NKCS11_VERSION_MINOR 1
 #define NKCS11_VERSION_PATCH 0
-
-#define PROGNAME "nerves_key_pkcs11"
-
-#define DEBUG
-#ifdef DEBUG
-#define ENTER() do { \
-        fprintf(stderr, "%s: Entered %s().\r\n", PROGNAME, __func__); \
-    } while (0)
-
-#define INFO(fmt, ...) \
-        do { fprintf(stderr, "%s: " fmt "\r\n", PROGNAME, ##__VA_ARGS__); } while (0)
-#else
-#define ENTER()
-#define INFO(fmt, ...)
-#endif
-
-// Always warn on unimplemented functions. Maybe someone will help make this more complete.
-#define UNIMPLEMENTED() do { \
-        fprintf(stderr, "%s: %s is unimplemented.\r\n", PROGNAME, __func__); \
-    } while (0)
 
 static CK_INFO library_info = {
     .cryptokiVersion = CRYTOKI_VERSION,

@@ -43,15 +43,7 @@
 #include <sys/stat.h>
 
 #include "atecc508a.h"
-
-#define DEBUG
-#ifdef DEBUG
-#include <stdio.h>
-#define INFO(fmt, ...) \
-        do { fprintf(stderr, "%s: " fmt "\r\n", "atecc508a", ##__VA_ARGS__); } while (0)
-#else
-#define INFO(fmt, ...)
-#endif
+#include "log.h"
 
 #define ATECC508A_ADDR 0x60
 #define ATECC508A_WAKE_DELAY_US 1500
