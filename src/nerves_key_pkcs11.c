@@ -86,6 +86,9 @@ struct nerves_key_session {
     CK_ULONG find_index;
 
     int fd;
+
+    CK_BBOOL has_cached_public_key;
+    CK_BYTE cached_public_key[65];
 };
 
 static struct nerves_key_session session;
@@ -553,21 +556,28 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetAttributeValue)(
         case CKA_EC_POINT:
             // DER-encoding of ANSI X9.62 ECPoint value ''Q''.
         {
-            CK_BYTE publickey[65] = {0};
+            const unsigned long public_key_len = sizeof(session.cached_public_key);
 
             if (pTemplate[i].pValue == NULL_PTR) {
-                pTemplate[i].ulValueLen = sizeof(publickey);
+                pTemplate[i].ulValueLen = public_key_len;
                 rv = CKR_OK;
-            } else if (pTemplate[i].ulValueLen >= sizeof(publickey)) {
-                pTemplate[i].ulValueLen = sizeof(publickey);
+            } else if (pTemplate[i].ulValueLen >= public_key_len) {
+                pTemplate[i].ulValueLen = public_key_len;
 
-                // DER-encoding of the key starts with 0x04
-                publickey[0] = 0x04;
-                if (atecc508a_derive_public_key(session.fd, 0, &publickey[1]) < 0) {
-                    INFO("Error getting public key!");
-                    rv = CKR_DEVICE_ERROR;
-                } else {
+                if (session.has_cached_public_key) {
+                    memcpy(pTemplate[i].pValue, session.cached_public_key, public_key_len);
                     rv = CKR_OK;
+                } else {
+                    // DER-encoding of the key starts with 0x04
+                    session.cached_public_key[0] = 0x04;
+                    if (atecc508a_derive_public_key(session.fd, 0, &session.cached_public_key[1]) < 0) {
+                        INFO("Error getting public key!");
+                        rv = CKR_DEVICE_ERROR;
+                    } else {
+                        session.has_cached_public_key = CK_TRUE;
+                        memcpy(pTemplate[i].pValue, session.cached_public_key, public_key_len);
+                        rv = CKR_OK;
+                    }
                 }
             } else {
                 pTemplate[i].ulValueLen = (CK_ULONG) -1;
