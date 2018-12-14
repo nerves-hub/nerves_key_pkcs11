@@ -437,6 +437,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_CreateObject)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pTemplate);
+    UNUSED(ulCount);
+    UNUSED(phObject);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -451,6 +454,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_CopyObject)(
 {
     UNUSED(hSession);
     UNUSED(hObject);
+    UNUSED(pTemplate);
+    UNUSED(ulCount);
+    UNUSED(phNewObject);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -474,6 +480,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetObjectSize)(
 {
     UNUSED(hSession);
     UNUSED(hObject);
+    UNUSED(pulSize);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -666,6 +673,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pTemplate);
+    UNUSED(ulCount);
     ENTER();
 
     if (hSession != 0 || session.open_count == 0)
@@ -714,6 +723,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_EncryptInit)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pMechanism);
+    UNUSED(hKey);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -727,6 +738,10 @@ CK_DEFINE_FUNCTION(CK_RV, C_Encrypt)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pData);
+    UNUSED(ulDataLen);
+    UNUSED(pEncryptedData);
+    UNUSED(pulEncryptedDataLen);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -740,6 +755,10 @@ CK_DEFINE_FUNCTION(CK_RV, C_EncryptUpdate)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pPart);
+    UNUSED(ulPartLen);
+    UNUSED(pEncryptedPart);
+    UNUSED(pulEncryptedPartLen);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -751,6 +770,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_EncryptFinal)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pLastEncryptedPart);
+    UNUSED(pulLastEncryptedPartLen);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -762,6 +783,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptInit)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pMechanism);
+    UNUSED(hKey);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -775,6 +798,10 @@ CK_DEFINE_FUNCTION(CK_RV, C_Decrypt)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pEncryptedData);
+    UNUSED(ulEncryptedDataLen);
+    UNUSED(pData);
+    UNUSED(pulDataLen);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -788,6 +815,10 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptUpdate)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pEncryptedPart);
+    UNUSED(ulEncryptedPartLen);
+    UNUSED(pPart);
+    UNUSED(pulPartLen);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -799,6 +830,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptFinal)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pLastPart);
+    UNUSED(pulLastPartLen);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -809,6 +842,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_DigestInit)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pMechanism);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -822,8 +856,11 @@ CK_DEFINE_FUNCTION(CK_RV, C_Digest)(
 )
 {
     UNUSED(hSession);
-    ENTER();
-    INFO("TODO!!!");
+    UNUSED(pData);
+    UNUSED(ulDataLen);
+    UNUSED(pDigest);
+    UNUSED(pulDigestLen);
+    UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
 
@@ -834,6 +871,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_DigestUpdate)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pPart);
+    UNUSED(ulPartLen);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -844,6 +883,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_DigestKey)(
 )
 {
     UNUSED(hSession);
+    UNUSED(hKey);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -855,6 +895,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_DigestFinal)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pDigest);
+    UNUSED(pulDigestLen);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -866,6 +908,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignInit)(
 )
 {
     UNUSED(hSession);
+    UNUSED(hKey);
     ENTER();
     if (hSession != 0 || session.open_count == 0)
         return CKR_SESSION_HANDLE_INVALID;
@@ -930,6 +973,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignUpdate)(
     CK_ULONG ulPartLen
 )
 {
+    UNUSED(hSession);
+    UNUSED(pPart);
+    UNUSED(ulPartLen);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -941,6 +987,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignFinal)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pSignature);
+    UNUSED(pulSignatureLen);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -952,6 +1000,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignRecoverInit)(
 )
 {
     UNUSED(hSession);
+    UNUSED(hKey);
+    UNUSED(pMechanism);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -965,6 +1015,10 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignRecover)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pData);
+    UNUSED(ulDataLen);
+    UNUSED(pSignature);
+    UNUSED(pulSignatureLen);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -976,6 +1030,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_VerifyInit)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pMechanism);
+    UNUSED(hKey);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -989,6 +1045,10 @@ CK_DEFINE_FUNCTION(CK_RV, C_Verify)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pData);
+    UNUSED(ulDataLen);
+    UNUSED(pSignature);
+    UNUSED(ulSignatureLen);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -1000,6 +1060,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_VerifyUpdate)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pPart);
+    UNUSED(ulPartLen);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -1011,6 +1073,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_VerifyFinal)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pSignature);
+    UNUSED(ulSignatureLen);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -1022,6 +1086,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_VerifyRecoverInit)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pMechanism);
+    UNUSED(hKey);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -1035,6 +1101,10 @@ CK_DEFINE_FUNCTION(CK_RV, C_VerifyRecover)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pSignature);
+    UNUSED(ulSignatureLen);
+    UNUSED(pData);
+    UNUSED(pulDataLen);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -1066,6 +1136,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptDigestUpdate)(
 {
     UNUSED(pPart);
     UNUSED(pEncryptedPart);
+    UNUSED(ulEncryptedPartLen);
+    UNUSED(pulPartLen);
     UNUSED(hSession);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
@@ -1099,6 +1171,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptVerifyUpdate)(
     UNUSED(hSession);
     UNUSED(pPart);
     UNUSED(pEncryptedPart);
+    UNUSED(ulEncryptedPartLen);
+    UNUSED(pulPartLen);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -1112,6 +1186,10 @@ CK_DEFINE_FUNCTION(CK_RV, C_GenerateKey)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pMechanism);
+    UNUSED(pTemplate);
+    UNUSED(ulCount);
+    UNUSED(phKey);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -1128,6 +1206,13 @@ CK_DEFINE_FUNCTION(CK_RV, C_GenerateKeyPair)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pMechanism);
+    UNUSED(pPublicKeyTemplate);
+    UNUSED(ulPublicKeyAttributeCount);
+    UNUSED(pPrivateKeyTemplate);
+    UNUSED(ulPrivateKeyAttributeCount);
+    UNUSED(phPublicKey);
+    UNUSED(phPrivateKey);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -1142,6 +1227,11 @@ CK_DEFINE_FUNCTION(CK_RV, C_WrapKey)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pMechanism);
+    UNUSED(hWrappingKey);
+    UNUSED(hKey);
+    UNUSED(pWrappedKey);
+    UNUSED(pulWrappedKeyLen);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -1158,6 +1248,13 @@ CK_DEFINE_FUNCTION(CK_RV, C_UnwrapKey)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pMechanism);
+    UNUSED(hUnwrappingKey);
+    UNUSED(pWrappedKey);
+    UNUSED(ulWrappedKeyLen);
+    UNUSED(pTemplate);
+    UNUSED(ulAttributeCount);
+    UNUSED(phKey);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -1172,6 +1269,11 @@ CK_DEFINE_FUNCTION(CK_RV, C_DeriveKey)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pMechanism);
+    UNUSED(hBaseKey);
+    UNUSED(pTemplate);
+    UNUSED(ulAttributeCount);
+    UNUSED(phKey);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -1185,6 +1287,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_SeedRandom)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pSeed);
+    UNUSED(ulSeedLen);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
@@ -1196,6 +1300,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_GenerateRandom)(
 )
 {
     UNUSED(hSession);
+    UNUSED(pRandomData);
+    UNUSED(ulRandomLen);
     UNIMPLEMENTED();
     return CKR_FUNCTION_FAILED;
 }
