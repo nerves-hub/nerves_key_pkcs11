@@ -49,26 +49,28 @@
 #define ATECC508A_WAKE_DELAY_US 1500
 
 // The ATECC508A/608A have different times for how long to wait for commands to complete.
-// Unless I'm totally misreading the datasheet (Table 9-4), it really seems like those are too short.
+// Unless I'm totally misreading the datasheet (Table 9-4), it really seems like some are too short.
 // See https://github.com/MicrochipTech/cryptoauthlib/blob/master/lib/atca_execution.c#L98 for
 // another opinion on execution times.
 //
 // I'm taking the "typical" time from the datasheet and the "max" time from the longest
 // I see on the 508A/608A in atca_execution.c or the datasheet.
-#define ATECC508A_CHECKMAC_TYPICAL_US     5000
-#define ATECC508A_CHECKMAC_MAX_US        40000
-#define ATECC508A_DERIVE_KEY_TYPICAL_US   2000
-#define ATECC508A_DERIVE_KEY_MAX_US      50000
-#define ATECC508A_ECDH_TYPICAL_US        38000
-#define ATECC508A_ECDH_MAX_US           531000
-#define ATECC508A_GENKEY_TYPICAL_US      11000
-#define ATECC508A_GENKEY_MAX_US         653000
-#define ATECC508A_NONCE_TYPICAL_US         100
-#define ATECC508A_NONCE_MAX_US           29000
-#define ATECC508A_READ_TYPICAL_US          100
-#define ATECC508A_READ_MAX_US             5000
-#define ATECC508A_SIGN_TYPICAL_US        42000
-#define ATECC508A_SIGN_MAX_US           665000
+
+struct atecc508a_opcode_info {
+    uint8_t opcode;  // Opcode
+    uint16_t length; // Response length
+    int typical_us;  // Typical processing time
+    int max_us;      // Max processing time
+};
+
+//static const struct atecc508a_opcode_info op_checkmac =   {0x28,  1,  5000,  40000};
+//static const struct atecc508a_opcode_info op_derive_key = {0x1c,  1,  2000,  50000};
+//static const struct atecc508a_opcode_info op_ecdh =       {0x43,  1, 38000, 531000};
+static const struct atecc508a_opcode_info op_genkey =     {0x40, 64, 11000, 653000};
+static const struct atecc508a_opcode_info op_nonce =      {0x16,  1,   100,  29000};
+static const struct atecc508a_opcode_info op_read4 =      {0x02,  4,   100,   5000};
+static const struct atecc508a_opcode_info op_read32 =     {0x02, 32,   100,   5000};
+static const struct atecc508a_opcode_info op_sign =       {0x41, 64, 42000, 665000};
 
 static int microsleep(int microseconds)
 {
@@ -97,7 +99,7 @@ static int i2c_read(int fd, uint8_t addr, uint8_t *to_read, size_t to_read_len)
     return ioctl(fd, I2C_RDWR, &data);
 }
 
-static int i2c_write(int fd, uint8_t addr, const uint8_t *to_write, size_t to_write_len)
+static int i2c_write(int fd, uint8_t addr, const uint8_t *to_write, uint16_t to_write_len)
 {
     struct i2c_rdwr_ioctl_data data;
     struct i2c_msg msg;
@@ -131,6 +133,65 @@ static int i2c_poll_read(int fd, uint8_t addr, uint8_t *to_read, size_t to_read_
     return rc;
 }
 
+// See Atmel CryptoAuthentication Data Zone CRC Calculation application note
+static void atecc508a_crc(uint8_t *data)
+{
+    const uint16_t polynom = 0x8005;
+    uint16_t crc_register = 0;
+
+    size_t length = data[0] - 2;
+
+    for (size_t counter = 0; counter < length; counter++)
+    {
+        for (uint8_t shift_register = 0x01; shift_register > 0x00; shift_register <<= 1)
+        {
+            uint8_t data_bit = (data[counter] & shift_register) ? 1 : 0;
+            uint8_t crc_bit = crc_register >> 15;
+            crc_register <<= 1;
+            if (data_bit != crc_bit)
+                crc_register ^= polynom;
+        }
+    }
+
+    uint8_t *crc_le = &data[length];
+    crc_le[0] = (uint8_t)(crc_register & 0x00FF);
+    crc_le[1] = (uint8_t)(crc_register >> 8);
+}
+
+static int atecc508a_request(int fd, const struct atecc508a_opcode_info *op, uint8_t *msg, uint8_t *response)
+{
+    atecc508a_crc(&msg[1]);
+
+    // Calculate and append the CRC and send
+    if (i2c_write(fd, ATECC508A_ADDR, msg, msg[1] + 1) < 0) {
+        ERROR("Error from i2c_write for opcode 0x%02x", msg[2]);
+        return -1;
+    }
+
+    if (i2c_poll_read(fd, ATECC508A_ADDR, response, op->length + 3, op->typical_us, op->max_us) < 0) {
+        ERROR("Error for i2c_read for opcode 0x%02x. Waited %d us", msg[2], op->max_us);
+        return -1;
+    }
+
+    // Check length
+    if (response[0] != op->length + 3) {
+        ERROR("Response error for opcode 0x%02x: 0x%02x", msg[2], response[0]);
+        return -1;
+    }
+
+    // Check the CRC
+    uint8_t got_crc[2];
+    got_crc[0] = response[op->length + 1];
+    got_crc[1] = response[op->length + 2];
+    atecc508a_crc(response);
+    if (got_crc[0] != response[op->length + 1] || got_crc[1] != response[op->length + 2]) {
+        ERROR("CRC error for opcode 0x%02x", msg[2]);
+        return -1;
+    }
+
+    return 0;
+}
+
 int atecc508a_open(const char *filename)
 {
     return open(filename, O_RDWR);
@@ -156,14 +217,18 @@ int atecc508a_wakeup(int fd)
 
     // Check that it's awake by reading its signature
     uint8_t buffer[4];
-    if (i2c_read(fd, ATECC508A_ADDR, buffer, sizeof(buffer)) < 0)
+    if (i2c_read(fd, ATECC508A_ADDR, buffer, sizeof(buffer)) < 0) {
+        ERROR("Can't wakeup ATECC508A");
         return -1;
+    }
 
     if (buffer[0] != 0x04 ||
             buffer[1] != 0x11 ||
             buffer[2] != 0x33 ||
-            buffer[3] != 0x43)
+            buffer[3] != 0x43) {
+        ERROR("Bad ATECC508A signature: %02x%02x%02x%02x", buffer[0], buffer[1], buffer[2], buffer[3]);
         return -1;
+    }
 
     return 0;
 }
@@ -195,31 +260,6 @@ static int atecc508a_get_addr(uint8_t zone, uint16_t slot, uint8_t block, uint8_
     }
 }
 
-// See Atmel CryptoAuthentication Data Zone CRC Calculation application note
-static void atecc508a_crc(uint8_t *data)
-{
-    const uint16_t polynom = 0x8005;
-    uint16_t crc_register = 0;
-
-    size_t length = data[0] - 2;
-
-    for (size_t counter = 0; counter < length; counter++)
-    {
-        for (uint8_t shift_register = 0x01; shift_register > 0x00; shift_register <<= 1)
-        {
-            uint8_t data_bit = (data[counter] & shift_register) ? 1 : 0;
-            uint8_t crc_bit = crc_register >> 15;
-            crc_register <<= 1;
-            if (data_bit != crc_bit)
-                crc_register ^= polynom;
-        }
-    }
-
-    uint8_t *crc_le = &data[length];
-    crc_le[0] = (uint8_t)(crc_register & 0x00FF);
-    crc_le[1] = (uint8_t)(crc_register >> 8);
-}
-
 /**
  * Read data out of a zone
  *
@@ -239,34 +279,34 @@ static int atecc508a_read_zone_nowake(int fd, uint8_t zone, uint16_t slot, uint8
     if (atecc508a_get_addr(zone, slot, block, offset, &addr) < 0)
         return -1;
 
-    uint8_t msg[8];
+    uint8_t zone_flag;
+    const struct atecc508a_opcode_info *op;
+    switch (len) {
+    case 32:
+        zone_flag = 0x80;
+        op = &op_read32;
+        break;
 
+    case 4:
+        zone_flag = 0x00;
+        op = &op_read4;
+        break;
+
+    default:
+        ERROR("Bad read length %d", len);
+        return -1;
+    }
+
+    uint8_t msg[8];
     msg[0] = 3;    // "word address"
     msg[1] = 7;    // 7 byte message
     msg[2] = 0x02; // Read opcode
-    msg[3] = (len == 32 ? (zone | 0x80) : zone);
+    msg[3] = zone_flag | zone;
     msg[4] = addr & 0xff;
     msg[5] = addr >> 8;
 
-    atecc508a_crc(&msg[1]);
-
-    if (i2c_write(fd, ATECC508A_ADDR, msg, sizeof(msg)) < 0)
-        return -1;
-
     uint8_t response[32 + 3];
-    if (i2c_poll_read(fd, ATECC508A_ADDR, response, len + 3, ATECC508A_READ_TYPICAL_US, ATECC508A_READ_MAX_US) < 0)
-        return -1;
-
-    // Check length
-    if (response[0] != len + 3)
-        return -1;
-
-    // Check the CRC
-    uint8_t got_crc[2];
-    got_crc[0] = response[len + 1];
-    got_crc[1] = response[len + 2];
-    atecc508a_crc(response);
-    if (got_crc[0] != response[len + 1] || got_crc[1] != response[len + 2])
+    if (atecc508a_request(fd, op, msg, response) < 0)
         return -1;
 
     // Copy the data (bytes after the count field)
@@ -319,7 +359,7 @@ int atecc508a_derive_public_key(int fd, uint8_t slot, uint8_t *key)
 
     msg[0] = 3;    // "word address"
     msg[1] = 10;   // 10 byte message
-    msg[2] = 0x40; // GenKey opcode
+    msg[2] = op_genkey.opcode;
     msg[3] = 0;    // Mode
     msg[4] = slot;
     msg[5] = 0;
@@ -327,34 +367,9 @@ int atecc508a_derive_public_key(int fd, uint8_t slot, uint8_t *key)
     msg[7] = 0;
     msg[8] = 0;
 
-    atecc508a_crc(&msg[1]);
-
-    if (i2c_write(fd, ATECC508A_ADDR, msg, sizeof(msg)) < 0) {
-        INFO("Error from i2c_write for GenKey %d", slot);
-        return -1;
-    }
-
     uint8_t response[64 + 3];
-    if (i2c_poll_read(fd, ATECC508A_ADDR, response, sizeof(response), ATECC508A_GENKEY_TYPICAL_US, ATECC508A_GENKEY_MAX_US) < 0) {
-        INFO("Read failed for genkey response");
+    if (atecc508a_request(fd, &op_genkey, msg, response) < 0)
         return -1;
-    }
-
-    // Check length
-    if (response[0] != 64 + 3) {
-        INFO("Unexpected response length 0x%02x", response[0]);
-        return -1;
-    }
-
-    // Check the CRC
-    uint8_t got_crc[2];
-    got_crc[0] = response[64 + 1];
-    got_crc[1] = response[64 + 2];
-    atecc508a_crc(response);
-    if (got_crc[0] != response[64 + 1] || got_crc[1] != response[64 + 2]) {
-        INFO("CRC error on genkey");
-        return -1;
-    }
 
     // Copy the data (bytes after the count field)
     memcpy(key, &response[1], 64);
@@ -383,24 +398,17 @@ int atecc508a_sign(int fd, uint8_t slot, const uint8_t *data, uint8_t *signature
 
     msg[0] = 3;    // "word address"
     msg[1] = 39;   // Length
-    msg[2] = 0x16; // Nonce opcode
+    msg[2] = op_nonce.opcode;
     msg[3] = 0x3;  // Mode - Write NumIn to TempKey
     msg[4] = 0;    // Zero LSB
     msg[5] = 0;    // Zero MSB
     memcpy(&msg[6], data, 32); // NumIn
 
-    atecc508a_crc(&msg[1]);
-
-    if (i2c_write(fd, ATECC508A_ADDR, msg, msg[1] + 1) < 0)
-        return -1;
-
     uint8_t response[64 + 3];
-    if (i2c_poll_read(fd, ATECC508A_ADDR, response, 4, ATECC508A_NONCE_TYPICAL_US, ATECC508A_NONCE_MAX_US) < 0) {
-        INFO("Didn't receive response to Nonce cmd");
+    if (atecc508a_request(fd, &op_nonce, msg, response) < 0)
         return -1;
-    }
 
-    if (response[0] != 4 || response[1] != 0) {
+    if (response[1] != 0) {
         INFO("Unexpected Nonce response %02x %02x %02x %02x", response[0], response[1], response[2], response[3]);
         return -1;
     }
@@ -408,37 +416,13 @@ int atecc508a_sign(int fd, uint8_t slot, const uint8_t *data, uint8_t *signature
     // Sign the value in TempKey
     msg[0] = 3;     // "word address"
     msg[1] = 7;     // Length
-    msg[2] = 0x41;  // Sign opcode
+    msg[2] = op_sign.opcode;
     msg[3] = 0x80;  // Mode - the data to be signed is in TempKey
     msg[4] = slot;  // KeyID LSB
     msg[5] = 0;     // KeyID MSB
-    atecc508a_crc(&msg[1]);
 
-    if (i2c_write(fd, ATECC508A_ADDR, msg, msg[1] + 1) < 0) {
-        INFO("Error signing TempKey");
+    if (atecc508a_request(fd, &op_sign, msg, response) < 0)
         return -1;
-    }
-
-    if (i2c_poll_read(fd, ATECC508A_ADDR, response, 64 + 3, ATECC508A_SIGN_TYPICAL_US, ATECC508A_SIGN_MAX_US) < 0) {
-        INFO("Didn't receive response from sign cmd");
-        return -1;
-    }
-
-    // Check length
-    if (response[0] != 64 + 3) {
-        INFO("Sign response not expected: %02x %02x %02x %02x", response[0], response[1], response[2], response[3]);
-        return -1;
-    }
-
-    // Check the CRC
-    uint8_t got_crc[2];
-    got_crc[0] = response[64 + 1];
-    got_crc[1] = response[64 + 2];
-    atecc508a_crc(response);
-    if (got_crc[0] != response[64 + 1] || got_crc[1] != response[64 + 2]) {
-        INFO("Bad CRC on sign response");
-        return -1;
-    }
 
     // Copy the data (bytes after the count field)
     memcpy(signature, &response[1], 64);
