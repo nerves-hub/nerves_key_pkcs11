@@ -353,7 +353,7 @@ int atecc508a_derive_public_key(int fd, uint8_t slot, uint8_t *key)
 {
     // Send a GenKey command to derive the public key from a previously stored private key
     uint8_t msg[11];
-INFO("PUBLIC_KEY!!!!!");
+
     if (atecc508a_wakeup(fd) < 0)
         return -1;
 

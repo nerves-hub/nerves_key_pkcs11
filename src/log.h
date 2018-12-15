@@ -35,7 +35,7 @@
 
 #define PROGNAME "nerves_key_pkcs11"
 
-#define DEBUG
+//#define DEBUG
 #ifdef DEBUG
 #define ENTER() do { fprintf(stderr, "%s: Entered %s().\r\n", PROGNAME, __func__); } while (0)
 

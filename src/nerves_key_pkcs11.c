@@ -42,23 +42,25 @@
 #define NKCS11_VERSION_MINOR 1
 #define NKCS11_VERSION_PATCH 0
 
+#define NKCS11_SESSION_MAGIC 0x4e727673
+
 static CK_INFO library_info = {
     .cryptokiVersion = CRYTOKI_VERSION,
     .manufacturerID = "NervesKey",
     .flags = 0,
-    .libraryDescription = "PKCS#11 PIV Library (SP-800-73)",
+    .libraryDescription = "NervesKey PKCS#11 Library",
     .libraryVersion = {NKCS11_VERSION_MAJOR, (NKCS11_VERSION_MINOR * 10) + NKCS11_VERSION_PATCH}
 };
 
-static CK_SLOT_INFO slot_0_info = {
-    .slotDescription = "NervesKey Slot 0",
+static CK_SLOT_INFO slot_info_template = {
+    .slotDescription = "",
     .manufacturerID = "NervesKey",
     .flags = CKF_TOKEN_PRESENT | CKF_HW_SLOT,
     .hardwareVersion = {0, 10},
     .firmwareVersion = {0, 10}
 };
 
-static CK_TOKEN_INFO slot_0_token_info = {
+static CK_TOKEN_INFO slot_token_info_template = {
     .label = "Slot0",
     .manufacturerID = "NervesKey",
     .model = "NervesKey",
@@ -82,6 +84,8 @@ static CK_TOKEN_INFO slot_0_token_info = {
 static CK_FUNCTION_LIST function_list;
 
 struct nerves_key_session {
+    CK_SLOT_ID slot_id;
+
     CK_ULONG open_count;
     CK_ULONG find_index;
 
@@ -158,14 +162,28 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(
 
     ENTER();
 
-    if (pSlotList == NULL_PTR) {
-        *pulCount = 1;
-    } else {
-        if (*pulCount < 1)
-            return CKR_BUFFER_TOO_SMALL;
-        *pulCount = 1;
-        *pSlotList = 0; // Slot 0 is the only slot
+    CK_ULONG count = 0;
+    CK_ULONG max_count = (pSlotList == NULL_PTR ? 100 : *pulCount);
+
+    for (CK_ULONG i = 0; i < 16; i++) {
+        char path[16];
+        sprintf(path, "/dev/i2c-%lu", i);
+        INFO("Checking %s", path);
+        int fd = atecc508a_open(path);
+        if (fd >= 0) {
+            INFO("Found %lu", i);
+            atecc508a_close(fd);
+            if (i > max_count)
+                return CKR_BUFFER_TOO_SMALL;
+
+            if (pSlotList)
+                pSlotList[count] = i;
+            count++;
+        }
     }
+    *pulCount = count;
+            INFO("Final count is %lu", count);
+
     return CKR_OK;
 }
 
@@ -174,11 +192,16 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotInfo)(
     CK_SLOT_INFO_PTR pInfo
 )
 {
-    ENTER();
-    if (slotID != 0)
+    if (slotID > 15)
         return CKR_SLOT_ID_INVALID;
+    if (pInfo == NULL_PTR)
+        return CKR_ARGUMENTS_BAD;
 
-    *pInfo = slot_0_info;
+    ENTER();
+    INFO("Get slot info for %lu", slotID);
+    *pInfo = slot_info_template;
+    sprintf((char*) pInfo->slotDescription, "NervesKey on I2C bus %lu", slotID);
+
     return CKR_OK;
 }
 
@@ -187,12 +210,13 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetTokenInfo)(
     CK_TOKEN_INFO_PTR pInfo
 )
 {
-    UNUSED(slotID);
-    UNUSED(pInfo);
     ENTER();
-    if (slotID != 0)
+    if (slotID > 15)
         return CKR_SLOT_ID_INVALID;
-    *pInfo = slot_0_token_info;
+
+    *pInfo = slot_token_info_template;
+    sprintf((char*) pInfo->label, "%lu", slotID);
+
     return CKR_OK;
 }
 
@@ -289,7 +313,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(
 )
 {
     ENTER();
-    if (slotID != 0)
+    if (slotID > 15)
         return CKR_SLOT_ID_INVALID;
     if (phSession == NULL_PTR)
         return CKR_ARGUMENTS_BAD;
@@ -303,14 +327,20 @@ CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(
     UNUSED(pApplication);
     UNUSED(Notify);
 
-    phSession = 0;
+    *phSession = NKCS11_SESSION_MAGIC;
 
     if (session.open_count == 0) {
-        session.fd = atecc508a_open("/dev/i2c-1");
+        char i2c_path[16];
+        sprintf(i2c_path, "/dev/i2c-%lu", slotID);
+        session.fd = atecc508a_open(i2c_path);
         if (session.fd < 0) {
-            INFO("Error opening I2C bus: %s", "/dev/i2c-1");
+            ERROR("Error opening I2C bus: %s", i2c_path);
             return CKR_DEVICE_ERROR;
         }
+        session.slot_id = slotID;
+    } else if (slotID != session.slot_id) {
+        ERROR("Trying to open slot %lu when slot %lu is already open!", slotID, session.slot_id);
+        return CKR_SLOT_ID_INVALID;
     }
     session.open_count++;
     return CKR_OK;
@@ -322,7 +352,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_CloseSession)(
 {
     ENTER();
 
-    if (hSession != 0 || session.open_count == 0)
+    if (hSession != NKCS11_SESSION_MAGIC || session.open_count == 0)
         return CKR_SLOT_ID_INVALID;
 
     session.open_count--;
@@ -338,7 +368,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_CloseAllSessions)(
 )
 {
     ENTER();
-    if (slotID != 0)
+    if (slotID != session.slot_id)
         return CKR_SLOT_ID_INVALID;
 
     if (session.open_count > 0) {
@@ -477,10 +507,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetAttributeValue)(
     CK_ULONG ulCount
 )
 {
-    UNUSED(hSession);
     UNUSED(hObject);
     ENTER();
-    if (hSession != 0 || session.open_count == 0)
+    if (hSession != NKCS11_SESSION_MAGIC || session.open_count == 0)
         return CKR_SESSION_HANDLE_INVALID;
 
     if (pTemplate == NULL_PTR || ulCount == 0)
@@ -490,6 +519,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetAttributeValue)(
     for (CK_ULONG i = 0; i < ulCount; i++) {
         CK_RV rv;
 
+        INFO("C_GetAttributeValue object %lu, attribute %lu", hObject, pTemplate[i].type);
         switch (pTemplate[i].type) {
         case CKA_KEY_TYPE:
             // Type of key.
@@ -507,13 +537,14 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetAttributeValue)(
             break;
 
         case CKA_LABEL:
+            INFO("LABEL");
             // Description of the object (default empty).
             if (pTemplate[i].pValue == NULL_PTR) {
                 pTemplate[i].ulValueLen = 3;
                 rv = CKR_OK;
             } else if (pTemplate[i].ulValueLen >= 3) {
                 pTemplate[i].ulValueLen = 3;
-                strcpy((char *) pTemplate[i].pValue, "0");
+                sprintf((char *) pTemplate[i].pValue, "%lu", session.slot_id);
                 rv = CKR_OK;
             } else {
                 pTemplate[i].ulValueLen = (CK_ULONG) -1;
@@ -522,13 +553,16 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetAttributeValue)(
             break;
 
         case CKA_ID:
+            INFO("ID");
             // Key identifier for public/private key pair (default empty).
             if (pTemplate[i].pValue == NULL_PTR) {
                 pTemplate[i].ulValueLen = 1;
                 rv = CKR_OK;
             } else if (pTemplate[i].ulValueLen >= 1) {
                 pTemplate[i].ulValueLen = 1;
-                *((CK_BYTE *) pTemplate[i].pValue) = '0';
+                // NOTE: This cannot possibly be the intended use, but it currently
+                //       makes the URL nice.
+                *((CK_BYTE *) pTemplate[i].pValue) = '0' + (CK_BYTE) session.slot_id;
                 rv = CKR_OK;
             } else {
                 pTemplate[i].ulValueLen = (CK_ULONG) -1;
@@ -636,10 +670,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetAttributeValue)(
     CK_ULONG ulCount
 )
 {
-    UNUSED(hSession);
     UNUSED(hObject);
     ENTER();
-    if (hSession != 0 || session.open_count == 0)
+    if (hSession != NKCS11_SESSION_MAGIC || session.open_count == 0)
         return CKR_SESSION_HANDLE_INVALID;
 
     if (pTemplate == NULL_PTR || ulCount == 0)
@@ -664,12 +697,11 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(
     CK_ULONG ulCount
 )
 {
-    UNUSED(hSession);
     UNUSED(pTemplate);
     UNUSED(ulCount);
     ENTER();
 
-    if (hSession != 0 || session.open_count == 0)
+    if (hSession != NKCS11_SESSION_MAGIC || session.open_count == 0)
         return CKR_SESSION_HANDLE_INVALID;
 
     session.find_index = 0;
@@ -684,11 +716,11 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjects)(
 )
 {
     ENTER();
-    if (hSession != 0 || session.open_count == 0)
+    if (hSession != NKCS11_SESSION_MAGIC || session.open_count == 0)
         return CKR_SESSION_HANDLE_INVALID;
 
     if (ulMaxObjectCount > 0 && session.find_index == 0) {
-        *phObject = 0;
+        *phObject = '0' + session.slot_id;
         *pulObjectCount = 1;
         session.find_index++;
     } else {
@@ -701,9 +733,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsFinal)(
     CK_SESSION_HANDLE hSession
 )
 {
-    UNUSED(hSession);
     ENTER();
-    if (hSession != 0 || session.open_count == 0)
+    if (hSession != NKCS11_SESSION_MAGIC || session.open_count == 0)
         return CKR_SESSION_HANDLE_INVALID;
     return CKR_OK;
 }
@@ -899,10 +930,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignInit)(
     CK_OBJECT_HANDLE hKey
 )
 {
-    UNUSED(hSession);
     UNUSED(hKey);
     ENTER();
-    if (hSession != 0 || session.open_count == 0)
+    if (hSession != NKCS11_SESSION_MAGIC || session.open_count == 0)
         return CKR_SESSION_HANDLE_INVALID;
     if (pMechanism == NULL_PTR)
         return CKR_ARGUMENTS_BAD;
@@ -928,9 +958,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_Sign)(
     CK_ULONG_PTR pulSignatureLen
 )
 {
-    UNUSED(hSession);
     ENTER();
-    if (hSession != 0 || session.open_count == 0)
+    if (hSession != NKCS11_SESSION_MAGIC || session.open_count == 0)
         return CKR_SESSION_HANDLE_INVALID;
     if (pulSignatureLen == NULL_PTR)
         return CKR_ARGUMENTS_BAD;

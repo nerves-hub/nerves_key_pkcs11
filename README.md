@@ -4,13 +4,19 @@
 [![Hex version](https://img.shields.io/hexpm/v/nerves_key_pkcs11.svg "Hex version")](https://hex.pm/packages/nerves_key_pkcs11)
 
 This is a minimal implementation of [PKCS #11](https://en.wikipedia.org/wiki/PKCS_11)
-for interacting with the NervesKey.  The NervesKey is a specific configuration
-of the ATECC508A/ATECC608A chips that holds one private key in slot 0. If you're
-using these chips in a similar configuration, this should work for you as well.
+for using the NervesKey with OpenSSL and other programs.  The NervesKey is a specific
+configuration of the ATECC508A/ATECC608A chips that holds one private key in slot 0. If
+you're using this chip in a similar configuration, this should work for you as well.
 
-This library is organized to make it easy to integrate into Elixir. If you're not
+Supported features:
+
+* ECDSA
+
+This library is organized to make it easy to integrate into Elixir and is
+written with an expectation that provisioning, extracting certificates, etc. is done
+via other means (like using [nerves_key](https://hex.pm/nerves_key).) If you're not
 using Elixir, you can still run `make` and copy `priv/nerves_key_pkcs11.so` to
-a conveniently location.
+a conveniently location. Elixir isn't needed to build the C library.
 
 Another option is to look at
 [cryptoauth-openssl-engine](https://github.com/MicrochipTech/cryptoauth-openssl-engine)
@@ -35,6 +41,24 @@ end
 If not using Elixir, run `make`. You may need to set $(CC) or $(CFLAGS) if you're
 crosscompiling.
 
+## Slot definition
+
+PKCS #11 uses the term slot to refer to cryptographic devices. This library
+can use either slot ID (if called directly) or the slot's token ID (if called
+via libp11) to find the NervesKey. The following table shows the mapping
+from slot to device.
+
+Slot range  | Description
+------------|------------
+0-15        | I2C bus 0-15 (i.e. /dev/i2c-0, etc.), ATECC508A at address 0x60 (the default)
+
+The [PKCS #11 URI](https://tools.ietf.org/html/rfc7512) for addressing the
+desired NervesKey has the form:
+
+```text
+pkcs11:id=1
+```
+
 ## OpenSSL integration
 
 To use this with OpenSSL, you'll need `libpkcs11.so`. This library comes from
@@ -58,7 +82,7 @@ Here's an example call in Elixir:
 {:ok, engine} = NervesKey.PKCS11.load_engine()
 ```
 
-If this doesn't work, you'll likely have to look at the implentation of
+If this doesn't work, you'll likely have to look at the implementation of
 `load_engine/0` and fine tune the shared library paths or control commands.
 
 After you load the engine, you'll eventually want to use it. The intended use
@@ -69,12 +93,12 @@ options, you'll have something like this:
 
 ```elixir
 [
-  key: NervesKey.PKCS11.private_key(engine),
+  key: NervesKey.PKCS11.private_key(engine, {:i2c, 1}),
   certfile: "device-cert.pem",
 ]
 ```
 
-The `NervesKey.PKCS11.private_key/1` helper method will create the appropriate
+The `NervesKey.PKCS11.private_key/2` helper method will create the appropriate
 map so that Erlang's `:crypto` library can properly call into OpenSSL.
 
 ## Sharing the NervesKey
@@ -83,7 +107,7 @@ If you have other code using the NervesKey, it might conflict with this library.
 no lock file or mechanism to keep more than one process from accessing the ATECC508A
 chip simultaneously. This is not expected to be an issue at runtime since the main
 reason to access the NervesKey in another process is to provision it and that's not
-something one would do when trying to use this library to assist a TLS negotation.
+something one would do when trying to use this library to assist a TLS negotiation.
 
 ## License
 

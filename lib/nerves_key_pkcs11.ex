@@ -5,6 +5,13 @@ defmodule NervesKey.PKCS11 do
   use the shared library.
   """
 
+  @typedoc """
+  The location of the NervesKey
+
+  Currently only I2C bus locations are supported.
+  """
+  @type location :: {:i2c, 0..15}
+
   @doc """
   Load the OpenSSL engine
   """
@@ -33,9 +40,17 @@ defmodule NervesKey.PKCS11 do
   use to properly route private key operations to the PKCS #11
   shared library.
   """
-  def private_key(engine) do
-    %{algorithm: :ecdsa, engine: engine, key_id: "pkcs11:id=0;type=private"}
+  @spec private_key(:crypto.engine_ref(), location()) :: map()
+  def private_key(engine, location) do
+    %{
+      algorithm: :ecdsa,
+      engine: engine,
+      key_id: "pkcs11:id=#{location_to_slot_id(location)}"
+    }
   end
+
+  defp location_to_slot_id({:i2c, bus_number}) when bus_number >= 0 and bus_number <= 16,
+    do: bus_number
 
   defp pkcs11_path() do
     [
