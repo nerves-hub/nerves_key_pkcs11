@@ -2,7 +2,7 @@
 LDFLAGS += -shared -Wl,-Bsymbolic
 
 CFLAGS = -Werror=undef -Werror=implicit -Werror=return-type  -Wall -Wstrict-prototypes -Wmissing-prototypes -DUSE_THREADS \
-	 -D_THREAD_SAFE -D_REENTRANT -DPOSIX_THREADS -D_POSIX_THREAD_SAFE_FUNCTIONS -O2 -fno-tree-copyrename -D_GNU_SOURCE -fPIC
+	 -D_THREAD_SAFE -D_REENTRANT -DPOSIX_THREADS -D_POSIX_THREAD_SAFE_FUNCTIONS -O2 -D_GNU_SOURCE -fPIC
 
 all: priv priv/nerves_key_pkcs11.so
 
