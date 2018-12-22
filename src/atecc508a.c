@@ -175,7 +175,7 @@ static int atecc508a_request(int fd, const struct atecc508a_opcode_info *op, uin
 
     // Check length
     if (response[0] != op->length + 3) {
-        ERROR("Response error for opcode 0x%02x: 0x%02x", msg[2], response[0]);
+        ERROR("Response error for opcode 0x%02x: %02x %02x %02x %02x", msg[2], response[0], response[1], response[2], response[3]);
         return -1;
     }
 
@@ -204,33 +204,42 @@ void atecc508a_close(int fd)
 
 int atecc508a_wakeup(int fd)
 {
-    // See ATECC508A 6.1 for the wakeup sequence.
-    //
-    // Write to address 0 to pull SDA down for the wakeup interval (60 uS).
-    // Since only 8-bits get through, the I2C speed needs to be < 133 KHz for
-    // this to work.
-    uint8_t zero = 0;
-    i2c_write(fd, 0, &zero, 1);
+    for (int i = 0; i < 2; i++) {
+        // See ATECC508A 6.1 for the wakeup sequence.
+        //
+        // Write to address 0 to pull SDA down for the wakeup interval (60 uS).
+        // Since only 8-bits get through, the I2C speed needs to be < 133 KHz for
+        // this to work.
+        uint8_t zero = 0;
+        i2c_write(fd, 0, &zero, 1);
 
-    // Wait for the device to wake up for real
-    microsleep(ATECC508A_WAKE_DELAY_US);
+        // Wait for the device to wake up for real
+        microsleep(ATECC508A_WAKE_DELAY_US);
 
-    // Check that it's awake by reading its signature
-    uint8_t buffer[4];
-    if (i2c_read(fd, ATECC508A_ADDR, buffer, sizeof(buffer)) < 0) {
-        ERROR("Can't wakeup ATECC508A");
-        return -1;
+        // Check that it's awake by reading its signature
+        uint8_t buffer[4];
+        if (i2c_read(fd, ATECC508A_ADDR, buffer, sizeof(buffer)) < 0) {
+            ERROR("Can't wakeup ATECC508A");
+            return -1;
+        }
+
+        if (buffer[0] == 0x04 &&
+            buffer[1] == 0x11 &&
+            buffer[2] == 0x33 &&
+            buffer[3] == 0x43) {
+            // Success
+            return 0;
+        }
+
+        ERROR("Unexpected ATECC508A wakeup response: %02x%02x%02x%02x", buffer[0], buffer[1], buffer[2], buffer[3]);
+
+        // Maybe the device is already awake due to an error. Try sleeping it
+        // and possibly trying again
+        atecc508a_sleep(fd);
+        microsleep(ATECC508A_WAKE_DELAY_US);
     }
-
-    if (buffer[0] != 0x04 ||
-            buffer[1] != 0x11 ||
-            buffer[2] != 0x33 ||
-            buffer[3] != 0x43) {
-        ERROR("Bad ATECC508A signature: %02x%02x%02x%02x", buffer[0], buffer[1], buffer[2], buffer[3]);
-        return -1;
-    }
-
-    return 0;
+    ERROR("No ATECC508A or it's in a really bad state");
+    return -1;
 }
 
 int atecc508a_sleep(int fd)
@@ -272,7 +281,7 @@ static int atecc508a_get_addr(uint8_t zone, uint16_t slot, uint8_t block, uint8_
  * @param len how much to read (4 or 32 bytes)
  * @return 0 on success
  */
-static int atecc508a_read_zone_nowake(int fd, uint8_t zone, uint16_t slot, uint8_t block, uint8_t offset, uint8_t *data, uint8_t len)
+int atecc508a_read_zone_nowake(int fd, uint8_t zone, uint16_t slot, uint8_t block, uint8_t offset, uint8_t *data, uint8_t len)
 {
     uint16_t addr;
 
@@ -324,21 +333,25 @@ static int atecc508a_read_zone_nowake(int fd, uint8_t zone, uint16_t slot, uint8
  */
 int atecc508a_read_serial(int fd, uint8_t *serial_number)
 {
+    int rc = 0;
     if (atecc508a_wakeup(fd) < 0)
         return -1;
 
     // Read the config -> try 2 times just in case there's a hiccup on the I2C bus
     uint8_t buffer[32];
     if (atecc508a_read_zone_nowake(fd, ATECC508A_ZONE_CONFIG, 0, 0, 0, buffer, 32) < 0 &&
-            atecc508a_read_zone_nowake(fd, ATECC508A_ZONE_CONFIG, 0, 0, 0, buffer, 32) < 0)
-        return -1;
+        atecc508a_read_zone_nowake(fd, ATECC508A_ZONE_CONFIG, 0, 0, 0, buffer, 32) < 0) {
+        rc = -1;
+        goto cleanup;
+    }
 
     // Copy out the serial number (see datasheet for offsets)
     memcpy(&serial_number[0], &buffer[0], 4);
     memcpy(&serial_number[4], &buffer[8], 5);
 
+cleanup:
     atecc508a_sleep(fd);
-    return 0;
+    return rc;
 }
 
 /**
@@ -353,6 +366,7 @@ int atecc508a_derive_public_key(int fd, uint8_t slot, uint8_t *key)
 {
     // Send a GenKey command to derive the public key from a previously stored private key
     uint8_t msg[11];
+    int rc = 0;
 
     if (atecc508a_wakeup(fd) < 0)
         return -1;
@@ -368,15 +382,17 @@ int atecc508a_derive_public_key(int fd, uint8_t slot, uint8_t *key)
     msg[8] = 0;
 
     uint8_t response[64 + 3];
-    if (atecc508a_request(fd, &op_genkey, msg, response) < 0)
-        return -1;
+    if (atecc508a_request(fd, &op_genkey, msg, response) < 0) {
+        rc = -1;
+        goto cleanup;
+    }
 
     // Copy the data (bytes after the count field)
     memcpy(key, &response[1], 64);
 
+cleanup:
     atecc508a_sleep(fd);
-
-    return 0;
+    return rc;
 }
 
 /**
@@ -392,6 +408,7 @@ int atecc508a_sign(int fd, uint8_t slot, const uint8_t *data, uint8_t *signature
 {
     // Send a Nonce command to load the data into TempKey
     uint8_t msg[40];
+    int rc = 0;
 
     if (atecc508a_wakeup(fd) < 0)
         return -1;
@@ -405,12 +422,15 @@ int atecc508a_sign(int fd, uint8_t slot, const uint8_t *data, uint8_t *signature
     memcpy(&msg[6], data, 32); // NumIn
 
     uint8_t response[64 + 3];
-    if (atecc508a_request(fd, &op_nonce, msg, response) < 0)
-        return -1;
+    if (atecc508a_request(fd, &op_nonce, msg, response) < 0) {
+        rc = -1;
+        goto cleanup;
+    }
 
     if (response[1] != 0) {
         INFO("Unexpected Nonce response %02x %02x %02x %02x", response[0], response[1], response[2], response[3]);
-        return -1;
+        rc = -1;
+        goto cleanup;
     }
 
     // Sign the value in TempKey
@@ -421,13 +441,15 @@ int atecc508a_sign(int fd, uint8_t slot, const uint8_t *data, uint8_t *signature
     msg[4] = slot;  // KeyID LSB
     msg[5] = 0;     // KeyID MSB
 
-    if (atecc508a_request(fd, &op_sign, msg, response) < 0)
-        return -1;
+    if (atecc508a_request(fd, &op_sign, msg, response) < 0) {
+        rc = -1;
+        goto cleanup;
+    }
 
     // Copy the data (bytes after the count field)
     memcpy(signature, &response[1], 64);
 
+cleanup:
     atecc508a_sleep(fd);
-
-    return 0;
+    return rc;
 }
