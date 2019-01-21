@@ -43,14 +43,23 @@ crosscompiling.
 
 ## Slot definition
 
-PKCS #11 uses the term slot to refer to cryptographic devices. This library
-can use either slot ID (if called directly) or the slot's token ID (if called
-via libp11) to find the NervesKey. The following table shows the mapping
-from slot to device.
+PKCS #11 uses the term slot to refer to cryptographic devices. This library can
+use either slot ID (if called directly) or the slot's token ID (if called via
+libp11) to find the NervesKey. Various parameters are mapped into the slot ID
+according to the table below:
 
-Slot range  | Description
-------------|------------
-0-15        | I2C bus 0-15 (i.e. /dev/i2c-0, etc.), ATECC508A at address 0x60 (the default)
+Slot range  | I2C bus   | Bus address | Certificate
+------------|-----------|-------------|------------
+0-15        | slot      | 0x60        | Primary or auxiliary
+
+On Linux, the I2C bus number in the table above determines the device file. For
+example, a bus number of "1" maps to `/dev/i2c-1`. NervesKey devices support a
+primary and auxiliary set of certificates. Normally only the primary device
+certificate is used. Under some conditions, it's useful to write a second set of
+certificates to the device and those can be referenced by using the "Auxiliary"
+rows in the table.  This library currently need to differentiate between primary
+and auxiliary certificates so that's not represented in the slot ID. It may be
+in the future.
 
 The [PKCS #11 URI](https://tools.ietf.org/html/rfc7512) for addressing the
 desired NervesKey has the form:
@@ -93,7 +102,7 @@ options, you'll have something like this:
 
 ```elixir
 [
-  key: NervesKey.PKCS11.private_key(engine, {:i2c, 1}),
+  key: NervesKey.PKCS11.private_key(engine, i2c: 1),
   certfile: "device-cert.pem",
 ]
 ```
