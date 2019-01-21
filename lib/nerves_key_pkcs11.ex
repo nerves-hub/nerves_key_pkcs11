@@ -5,12 +5,19 @@ defmodule NervesKey.PKCS11 do
   use the shared library.
   """
 
-  @typedoc """
-  The location of the NervesKey
+  @typedoc "I2C bus"
+  @type i2c_bus :: 0..15
 
-  Currently only I2C bus locations are supported.
+  @typedoc "The device/signer certificate pair to use"
+  @type certificate_pair() :: :primary | :aux
+
+  @typedoc """
+  Option for which NervesKey and certificate to use.
+
+  * `:i2c` - which I2C bus
+  * `:certificate` - which NervesKey certificate to use (`:primary` or `:aux`)
   """
-  @type location :: {:i2c, 0..15}
+  @type option :: {:i2c, i2c_bus()} | {:certificate, certificate_pair()}
 
   @doc """
   Load the OpenSSL engine
@@ -34,23 +41,40 @@ defmodule NervesKey.PKCS11 do
   end
 
   @doc """
-  Return the key map for passing a private key to ssl_opts
+  Return the key map for passing a private key to ssl_opts.
 
   This method creates the key map that the `:crypto` library can
   use to properly route private key operations to the PKCS #11
   shared library.
+
+  Options:
+
+  * `:i2c` - which I2C bus (defaults to I2C bus 0 (`/dev/i2c-0`))
+  * `:certificate` - which certificate on the NervesKey to use (defaults to `:primary`)
+
+  Passing `{:i2c, 1}` is still supported, but should be updated to use keyword
+  list form for the options.
   """
-  @spec private_key(:crypto.engine_ref(), location()) :: map()
-  def private_key(engine, location) do
+  @spec private_key(:crypto.engine_ref(), [option()] | {:i2c, i2c_bus()}) :: map()
+
+  def private_key(engine, {:i2c, _addr} = location), do: private_key(engine, [location])
+
+  def private_key(engine, opts) do
+    slot_id = Enum.reduce(opts, 0, &process_option/2)
+
     %{
       algorithm: :ecdsa,
       engine: engine,
-      key_id: "pkcs11:id=#{location_to_slot_id(location)}"
+      key_id: "pkcs11:id=#{slot_id}"
     }
   end
 
-  defp location_to_slot_id({:i2c, bus_number}) when bus_number >= 0 and bus_number <= 16,
-    do: bus_number
+  defp process_option({:i2c, bus_number}, acc) when bus_number >= 0 and bus_number <= 16,
+    do: acc + bus_number
+
+  # These are currently unused by the shared library, but validate them if they exist
+  defp process_option({:certificate, :primary}, acc), do: acc
+  defp process_option({:certificate, :aux}, acc), do: acc
 
   defp pkcs11_path() do
     [
