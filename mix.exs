@@ -4,7 +4,7 @@ defmodule NervesKey.PKCS11.MixProject do
   def project do
     [
       app: :nerves_key_pkcs11,
-      version: "0.1.1",
+      version: "0.2.0",
       elixir: "~> 1.7",
       description: description(),
       package: package(),
