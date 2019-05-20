@@ -41,7 +41,7 @@ defmodule NervesKey.PKCS11.MixProject do
     [
       {:elixir_make, "~> 0.4", runtime: false},
       {:ex_doc, "~> 0.19", only: [:dev, :test], runtime: false},
-      {:dialyxir, "1.0.0-rc.4", only: :dev, runtime: false}
+      {:dialyxir, "~> 1.0.0-rc.6", only: :dev, runtime: false}
     ]
   end
 end
