@@ -9,7 +9,9 @@ defmodule NervesKey.PKCS11.MixProject do
       description: description(),
       package: package(),
       compilers: [:elixir_make | Mix.compilers()],
+      make_targets: ["all"],
       make_clean: ["clean"],
+      dialyzer: dialyzer(),
       docs: [extras: ["README.md"]],
       start_permanent: Mix.env() == :prod,
       deps: deps()
@@ -42,6 +44,12 @@ defmodule NervesKey.PKCS11.MixProject do
       {:elixir_make, "~> 0.4", runtime: false},
       {:ex_doc, "~> 0.19", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.0.0-rc.6", only: :dev, runtime: false}
+    ]
+  end
+
+  defp dialyzer() do
+    [
+      flags: [:race_conditions, :unmatched_returns, :error_handling]
     ]
   end
 end
