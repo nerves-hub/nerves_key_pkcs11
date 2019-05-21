@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.1
+
+* Bug fixes
+  * Compile C code under `_build` rather than in the `src` directory
+
 ## v0.2.0
 
 This change refactors option passing to the `private_key` helper function. Your
