@@ -42,7 +42,7 @@ defmodule NervesKey.PKCS11.MixProject do
   defp deps do
     [
       {:elixir_make, "~> 0.4", runtime: false},
-      {:ex_doc, "~> 0.19", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.19", only: :docs, runtime: false},
       {:dialyxir, "~> 1.0.0", only: :dev, runtime: false}
     ]
   end
