@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.2
+
+* Bug fixes
+  * Add `:crypto` to the dependencies to fix Elixir 1.11 warning.
+
 ## v0.2.1
 
 * Bug fixes
