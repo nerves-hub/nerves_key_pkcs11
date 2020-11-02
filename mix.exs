@@ -1,20 +1,29 @@
 defmodule NervesKey.PKCS11.MixProject do
   use Mix.Project
 
+  @version "0.2.1"
+  @source_url "https://github.com/nerves-hub/nerves_key_pkcs11"
+
   def project do
     [
       app: :nerves_key_pkcs11,
-      version: "0.2.1",
+      version: @version,
       elixir: "~> 1.7",
       description: description(),
       package: package(),
+      source_url: @source_url,
       compilers: [:elixir_make | Mix.compilers()],
       make_targets: ["all"],
       make_clean: ["clean"],
       dialyzer: dialyzer(),
-      docs: [extras: ["README.md"]],
+      docs: docs(),
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      preferred_cli_env: %{
+        docs: :docs,
+        "hex.publish": :docs,
+        "hex.build": :docs
+      }
     ]
   end
 
@@ -27,7 +36,7 @@ defmodule NervesKey.PKCS11.MixProject do
   end
 
   defp package do
-    %{
+    [
       files: [
         "lib",
         "src/*.[ch]",
@@ -37,15 +46,24 @@ defmodule NervesKey.PKCS11.MixProject do
         "Makefile"
       ],
       licenses: ["BSD-2-Clause"],
-      links: %{"GitHub" => "https://github.com/nerves-hub/nerves_key_pkcs11"}
-    }
+      links: %{"GitHub" => @source_url}
+    ]
   end
 
   defp deps do
     [
       {:elixir_make, "~> 0.4", runtime: false},
-      {:ex_doc, "~> 0.19", only: :docs, runtime: false},
+      {:ex_doc, "~> 0.20", only: :docs, runtime: false},
       {:dialyxir, "~> 1.0.0", only: :dev, runtime: false}
+    ]
+  end
+
+  defp docs do
+    [
+      extras: ["README.md"],
+      main: "readme",
+      source_ref: "v#{@version}",
+      source_url: @source_url
     ]
   end
 

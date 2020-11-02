@@ -44,8 +44,8 @@ jobs:
       - run: mix deps.get
       - run: mix test
       - run: mix format --check-formatted
-      - run: MIX_ENV=docs mix docs
-      - run: MIX_ENV=docs mix hex.build
+      - run: mix docs
+      - run: mix hex.build
       - run: mix dialyzer
       - save_cache:
           key: v1-mix-cache-{{ checksum "mix.lock" }}
