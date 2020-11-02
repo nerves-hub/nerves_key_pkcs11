@@ -18,7 +18,9 @@ defmodule NervesKey.PKCS11.MixProject do
     ]
   end
 
-  def application, do: []
+  def application do
+    [extra_applications: [:crypto]]
+  end
 
   defp description do
     "PKCS #11 module for using the NervesKey"
