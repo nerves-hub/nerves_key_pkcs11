@@ -682,7 +682,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetAttributeValue)(
     for (CK_ULONG i = 0; i < ulCount; i++) {
         CK_RV rv = CKR_ATTRIBUTE_TYPE_INVALID;
 
-        // TODO: this function has some complex cases for return vlaue. Make sure to check them.
+        // TODO: this function has some complex cases for return value. Make sure to check them.
         if (rv != CKR_OK) {
             INFO("Unable to set attribute 0x%lx of object %lu", pTemplate[i].type, hObject);
             rv_final = rv;
