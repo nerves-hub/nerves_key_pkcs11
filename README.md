@@ -65,7 +65,7 @@ The [PKCS #11 URI](https://tools.ietf.org/html/rfc7512) for addressing the
 desired NervesKey has the form:
 
 ```text
-pkcs11:id=1
+pkcs11:token=1
 ```
 
 ## OpenSSL integration

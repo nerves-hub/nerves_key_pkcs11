@@ -65,7 +65,7 @@ defmodule NervesKey.PKCS11 do
     %{
       algorithm: :ecdsa,
       engine: engine,
-      key_id: "pkcs11:id=#{slot_id}"
+      key_id: "pkcs11:token=#{slot_id}"
     }
   end
 
