@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.3
+
+* Bug fixes
+  * Change pkcs11 URL to specify `token`. See
+    https://github.com/nerves-hub/nerves_key_pkcs11/pull/12.
+
 ## v0.2.2
 
 * Bug fixes
