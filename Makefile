@@ -1,13 +1,13 @@
-# Makefile for building port binaries
+# Makefile for building the shared library
 #
 # Makefile targets:
 #
-# all/install   build and install the NIF
+# all/install   build and install the shared library
 # clean         clean build products and intermediates
 #
 # Variables to override:
 #
-# MIX_COMPILE_PATH path to the build's ebin directory
+# MIX_APP_PATH  path to the build directory
 #
 # CC            C compiler
 # CROSSCOMPILE	crosscompiler prefix, if any
@@ -19,8 +19,11 @@ call_from_make:
 	mix compile
 endif
 
-PREFIX = $(MIX_COMPILE_PATH)/../priv
-BUILD  = $(MIX_COMPILE_PATH)/../obj
+PREFIX = $(MIX_APP_PATH)/priv
+BUILD  = $(MIX_APP_PATH)/obj
+
+BINARY = $(PREFIX)/nerves_key_pkcs11.so
+DEFAULT_TARGETS = $(PREFIX) $(BINARY)
 
 # Check that we're on a supported build platform
 ifeq ($(CROSSCOMPILE),)
@@ -32,10 +35,9 @@ ifeq ($(CROSSCOMPILE),)
         $(warning this should be done automatically.)
         $(warning .)
         $(warning Skipping C compilation unless targets explicitly passed to make.)
-	DEFAULT_TARGETS = $(PREFIX)
+	DEFAULT_TARGETS =
     endif
 endif
-DEFAULT_TARGETS ?= $(PREFIX) $(PREFIX)/nerves_key_pkcs11.so
 
 LDFLAGS += -shared -Wl,-Bsymbolic
 
@@ -46,16 +48,21 @@ SRC=$(wildcard src/*.c)
 HEADERS=$(wildcard src/*.h)
 OBJ=$(SRC:src/%.c=$(BUILD)/%.o)
 
+calling_from_make:
+	mix compile
+
 all: install
 
-install: $(BUILD) $(PREFIX) $(DEFAULT_TARGETS)
+install: $(BUILD) $(DEFAULT_TARGETS)
 
-$(OBJ): $(HEADERS)
+$(OBJ): $(HEADERS) Makefile
 
 $(BUILD)/%.o: src/%.c
+	@echo " CC $(notdir $@)"
 	$(CC) -c $(CFLAGS) -o $@ $<
 
-$(PREFIX)/nerves_key_pkcs11.so: $(OBJ)
+$(BINARY): $(OBJ)
+	@echo " LD $(notdir $@)"
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 $(PREFIX) $(BUILD):
@@ -65,6 +72,9 @@ format:
 	astyle -n $(SRC)
 
 clean:
-	$(RM) $(PREFIX)/nerves_key_pkcs11.so $(BUILD)/*.o
+	$(RM) $(BINARY) $(OBJ)
 
 .PHONY: all clean format calling_from_make install
+
+# Don't echo commands unless the caller exports "V=1"
+${V}.SILENT:
