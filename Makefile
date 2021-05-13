@@ -1,4 +1,4 @@
-# Makefile for building port binaries
+# Makefile for building the NIF
 #
 # Makefile targets:
 #
@@ -7,7 +7,7 @@
 #
 # Variables to override:
 #
-# MIX_COMPILE_PATH path to the build's ebin directory
+# MIX_APP_PATH  path to the build directory
 #
 # CC            C compiler
 # CROSSCOMPILE	crosscompiler prefix, if any
@@ -19,8 +19,10 @@ call_from_make:
 	mix compile
 endif
 
-PREFIX = $(MIX_COMPILE_PATH)/../priv
-BUILD  = $(MIX_COMPILE_PATH)/../obj
+PREFIX = $(MIX_APP_PATH)/priv
+BUILD  = $(MIX_APP_PATH)/obj
+
+NIF = $(PREFIX)/nerves_key_pkcs11.so
 
 # Check that we're on a supported build platform
 ifeq ($(CROSSCOMPILE),)
@@ -33,14 +35,27 @@ ifeq ($(CROSSCOMPILE),)
         $(warning .)
         $(warning Skipping C compilation unless targets explicitly passed to make.)
 	DEFAULT_TARGETS = $(PREFIX)
+
+	# This isn't needed since C compliation on OSX isn't supported, but this is
+	# useful for experimentation.
+        LDFLAGS += -undefined dynamic_lookup -dynamiclib
+        LDFLAGS += $(shell pkg-config --libs libp11)
+        CFLAGS += $(shell pkg-config --cflags libp11)
+    else
+        LDFLAGS += -fPIC -shared
+        CFLAGS += -fPIC
     endif
+else
+# Crosscompiled build
+LDFLAGS += -fPIC -shared
+CFLAGS += -fPIC
 endif
-DEFAULT_TARGETS ?= $(PREFIX) $(PREFIX)/nerves_key_pkcs11.so
+DEFAULT_TARGETS ?= $(PREFIX) $(NIF)
 
-LDFLAGS += -shared -Wl,-Bsymbolic
+#LDFLAGS += -shared -Wl,-Bsymbolic
 
-CFLAGS = -Werror=undef -Werror=implicit -Werror=return-type  -Wall -Wstrict-prototypes -Wmissing-prototypes -DUSE_THREADS \
-	 -D_THREAD_SAFE -D_REENTRANT -DPOSIX_THREADS -D_POSIX_THREAD_SAFE_FUNCTIONS -O2 -D_GNU_SOURCE -fPIC
+#CFLAGS = -Werror=undef -Werror=implicit -Werror=return-type  -Wall -Wstrict-prototypes -Wmissing-prototypes -DUSE_THREADS \
+#	 -D_THREAD_SAFE -D_REENTRANT -DPOSIX_THREADS -D_POSIX_THREAD_SAFE_FUNCTIONS -O2 -D_GNU_SOURCE -fPIC
 
 SRC=$(wildcard src/*.c)
 HEADERS=$(wildcard src/*.h)
@@ -55,7 +70,7 @@ $(OBJ): $(HEADERS)
 $(BUILD)/%.o: src/%.c
 	$(CC) -c $(CFLAGS) -o $@ $<
 
-$(PREFIX)/nerves_key_pkcs11.so: $(OBJ)
+$(NIF): $(OBJ)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 $(PREFIX) $(BUILD):
@@ -65,6 +80,6 @@ format:
 	astyle -n $(SRC)
 
 clean:
-	$(RM) $(PREFIX)/nerves_key_pkcs11.so $(BUILD)/*.o
+	$(RM) $(PREFIX)/nerves_key_pkcs11.so $(OBJ)
 
 .PHONY: all clean format calling_from_make install
