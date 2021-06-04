@@ -966,7 +966,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_Sign)(
 
     if (pSignature == NULL_PTR) {
         *pulSignatureLen = 64;
-        return CKR_OK;
+        return CKR_BUFFER_TOO_SMALL;
     } else if (*pulSignatureLen < 64) {
         *pulSignatureLen = 64;
         return CKR_BUFFER_TOO_SMALL;
