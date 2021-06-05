@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.4
+
+* Bug fixes
+  * Fix segfault with libp11 v0.4.11
+
 ## v0.2.3
 
 * Bug fixes
