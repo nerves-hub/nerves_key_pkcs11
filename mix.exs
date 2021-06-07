@@ -38,6 +38,7 @@ defmodule NervesKey.PKCS11.MixProject do
   defp package do
     [
       files: [
+        "CHANGELOG.md",
         "lib",
         "src/*.[ch]",
         "mix.exs",
