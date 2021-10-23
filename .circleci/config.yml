@@ -28,9 +28,9 @@ defaults: &defaults
 jobs:
   build_elixir_1_12_otp_24:
     docker:
-      - image: erlang:24.0
+      - image: erlang:24.1.2
         environment:
-          ELIXIR_VERSION: 1.12.0-otp-24
+          ELIXIR_VERSION: 1.12.3-otp-24
           LC_ALL: C.UTF-8
     <<: *defaults
     steps:
@@ -44,6 +44,7 @@ jobs:
       - run: mix deps.get
       - run: mix test
       - run: mix format --check-formatted
+      - run: mix deps.unlock --check-unused
       - run: mix docs
       - run: mix hex.build
       - run: mix dialyzer
