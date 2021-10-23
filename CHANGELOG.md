@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.0
+
+This release only bumps the version number. It doesn't have any code changes.
+
 ## v0.2.4
 
 * Bug fixes
