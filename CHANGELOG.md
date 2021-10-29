@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.1 - 2020-10-28
+
+* Changes
+  * Reduce Makefile output
+
 ## v1.0.0
 
 This release only bumps the version number. It doesn't have any code changes.
