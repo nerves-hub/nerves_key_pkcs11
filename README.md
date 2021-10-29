@@ -33,7 +33,7 @@ If using it with Elixir, add a dependency to your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:nerves_key_pkcs11, "~> 0.2.2"}
+    {:nerves_key_pkcs11, "~> 1.0"}
   ]
 end
 ```
