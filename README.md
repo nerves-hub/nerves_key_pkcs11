@@ -48,9 +48,10 @@ use either slot ID (if called directly) or the slot's token ID (if called via
 libp11) to find the NervesKey. Various parameters are mapped into the slot ID
 according to the table below:
 
-Slot range  | I2C bus   | Bus address | Certificate
-------------|-----------|-------------|------------
-0-15        | slot      | 0x60        | Primary or auxiliary
+Slot range  | I2C bus   | Bus address              | Certificate
+------------|-----------|--------------------------|------------
+0-15        | slot      | 0x60 (ATECC default)     | Primary or auxiliary
+16-31       | slot-16   | 0x35 (Trust&Go versions) | Primary or auxiliary
 
 On Linux, the I2C bus number in the table above determines the device file. For
 example, a bus number of "1" maps to `/dev/i2c-1`. NervesKey devices support a

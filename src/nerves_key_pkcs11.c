@@ -37,6 +37,11 @@
 #include "atecc508a.h"
 #include "log.h"
 
+#define ATECC508A_DEFAULT_ADDR 0x60
+#define ATECC508A_TRUST_AND_GO_ADDR 0x35
+#define DEVICE_INDEX_SPLIT 16
+#define MAX_SLOT_ID 31
+
 #define CRYTOKI_VERSION { CRYPTOKI_VERSION_MAJOR, CRYPTOKI_VERSION_MINOR * 10 + CRYPTOKI_VERSION_REVISION }
 #define NKCS11_VERSION_MAJOR 0
 #define NKCS11_VERSION_MINOR 1
@@ -90,6 +95,7 @@ struct nerves_key_session {
     CK_ULONG find_index;
 
     int fd;
+    uint8_t addr;
 
     CK_BBOOL has_cached_public_key;
     CK_BYTE cached_public_key[65];
@@ -163,9 +169,11 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(
     ENTER();
 
     CK_ULONG count = 0;
-    CK_ULONG max_count = (pSlotList == NULL_PTR ? 100 : *pulCount);
+    CK_ULONG base_count;
+    CK_ULONG max_count = (pSlotList == NULL_PTR ? (MAX_SLOT_ID + 1) : *pulCount);
+    INFO("GetSlotList pSlotList=%p, max_count=%lu", pSlotList, max_count);
 
-    for (CK_ULONG i = 0; i < 16; i++) {
+    for (CK_ULONG i = 0; i < DEVICE_INDEX_SPLIT; i++) {
         char path[16];
         sprintf(path, "/dev/i2c-%lu", i);
         INFO("Checking %s", path);
@@ -173,16 +181,38 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(
         if (fd >= 0) {
             INFO("Found %lu", i);
             atecc508a_close(fd);
-            if (i > max_count)
+            if (count >= max_count)
                 return CKR_BUFFER_TOO_SMALL;
 
             if (pSlotList)
                 pSlotList[count] = i;
+
             count++;
         }
     }
+
+    // Replicate entries to support the alternative Trust&Go address
+    base_count = count;
+    for (CK_ULONG i = 0; i < base_count; i++) {
+        if (count >= max_count)
+            return CKR_BUFFER_TOO_SMALL;
+
+        if (pSlotList)
+            pSlotList[count] = i + DEVICE_INDEX_SPLIT;
+
+        count ++;
+    }
+
     *pulCount = count;
-            INFO("Final count is %lu", count);
+
+#ifdef DEBUG
+    INFO("Final count is %lu", count);
+    if (pSlotList) {
+        for (CK_ULONG i = 0; i < count; i++) {
+            INFO("  found --> %lu", pSlotList[i]);
+        }
+    }
+#endif
 
     return CKR_OK;
 }
@@ -192,7 +222,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotInfo)(
     CK_SLOT_INFO_PTR pInfo
 )
 {
-    if (slotID > 15)
+    if (slotID > MAX_SLOT_ID)
         return CKR_SLOT_ID_INVALID;
     if (pInfo == NULL_PTR)
         return CKR_ARGUMENTS_BAD;
@@ -200,7 +230,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotInfo)(
     ENTER();
     INFO("Get slot info for %lu", slotID);
     *pInfo = slot_info_template;
-    sprintf((char*) pInfo->slotDescription, "NervesKey on I2C bus %lu", slotID);
+    sprintf((char*) pInfo->slotDescription, "NervesKey slotID %lu", slotID);
 
     return CKR_OK;
 }
@@ -211,7 +241,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetTokenInfo)(
 )
 {
     ENTER();
-    if (slotID > 15)
+    if (slotID > MAX_SLOT_ID)
         return CKR_SLOT_ID_INVALID;
 
     *pInfo = slot_token_info_template;
@@ -313,7 +343,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(
 )
 {
     ENTER();
-    if (slotID > 15)
+    if (slotID > MAX_SLOT_ID)
         return CKR_SLOT_ID_INVALID;
     if (phSession == NULL_PTR)
         return CKR_ARGUMENTS_BAD;
@@ -331,7 +361,14 @@ CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(
 
     if (session.open_count == 0) {
         char i2c_path[16];
-        sprintf(i2c_path, "/dev/i2c-%lu", slotID);
+        sprintf(i2c_path, "/dev/i2c-%lu", (slotID % DEVICE_INDEX_SPLIT));
+
+        if(slotID >= DEVICE_INDEX_SPLIT) {
+            session.addr = ATECC508A_TRUST_AND_GO_ADDR;
+        } else {
+            session.addr = ATECC508A_DEFAULT_ADDR;
+        }
+
         session.fd = atecc508a_open(i2c_path);
         if (session.fd < 0) {
             ERROR("Error opening I2C bus: %s", i2c_path);
@@ -604,7 +641,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetAttributeValue)(
                 } else {
                     // DER-encoding of the key starts with 0x04
                     session.cached_public_key[0] = 0x04;
-                    if (atecc508a_derive_public_key(session.fd, 0, &session.cached_public_key[1]) < 0) {
+                    if (atecc508a_derive_public_key(session.fd, session.addr, 0, &session.cached_public_key[1]) < 0) {
                         INFO("Error getting public key!");
                         rv = CKR_DEVICE_ERROR;
                     } else {
@@ -980,7 +1017,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_Sign)(
         return CKR_ARGUMENTS_BAD;
     }
 
-    if (atecc508a_sign(session.fd, 0, pData, pSignature) < 0) {
+    if (atecc508a_sign(session.fd, session.addr, 0, pData, pSignature) < 0) {
         INFO("Error signing data!");
         return CKR_DEVICE_ERROR;
     }

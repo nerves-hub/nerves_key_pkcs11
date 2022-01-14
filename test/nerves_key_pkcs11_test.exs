@@ -52,4 +52,13 @@ defmodule NervesKey.PKCS11Test do
     key = NervesKey.PKCS11.private_key(engine, {:i2c, 0})
     assert Map.get(key, :key_id) == "pkcs11:token=0"
   end
+
+  test "trust and go" do
+    engine = make_ref()
+    key = NervesKey.PKCS11.private_key(engine, i2c: 0, type: :trust_and_go)
+    assert Map.get(key, :key_id) == "pkcs11:token=16"
+
+    key = NervesKey.PKCS11.private_key(engine, i2c: 1, type: :trust_and_go)
+    assert Map.get(key, :key_id) == "pkcs11:token=17"
+  end
 end

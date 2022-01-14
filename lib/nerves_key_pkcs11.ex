@@ -6,7 +6,7 @@ defmodule NervesKey.PKCS11 do
   """
 
   @typedoc "I2C bus"
-  @type i2c_bus :: 0..15
+  @type i2c_bus :: 0..31
 
   @typedoc "The device/signer certificate pair to use"
   @type certificate_pair() :: :primary | :aux
@@ -51,6 +51,7 @@ defmodule NervesKey.PKCS11 do
   Options:
 
   * `:i2c` - which I2C bus (defaults to I2C bus 0 (`/dev/i2c-0`))
+  * `:type` - :nerves_key or :trust_and_go (defaults to :nerves_key)
   * `:certificate` - which certificate on the NervesKey to use (defaults to `:primary`)
 
   Passing `{:i2c, 1}` is still supported, but should be updated to use keyword
@@ -72,6 +73,9 @@ defmodule NervesKey.PKCS11 do
 
   defp process_option({:i2c, bus_number}, acc) when bus_number >= 0 and bus_number <= 16,
     do: acc + bus_number
+
+  defp process_option({:type, :nerves_key}, acc), do: acc
+  defp process_option({:type, :trust_and_go}, acc), do: acc + 16
 
   # These are currently unused by the shared library, but validate them if they exist
   defp process_option({:certificate, :primary}, acc), do: acc
