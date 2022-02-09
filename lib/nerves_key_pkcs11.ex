@@ -32,12 +32,13 @@ defmodule NervesKey.PKCS11 do
       """
     end
 
-    # Load libpkcs11.so using OpenSSL's dynamic engine and then configure it
-    :crypto.engine_load(
-      "dynamic",
-      [{"SO_PATH", libpkcs}, {"ID", "pkcs11"}, {"LOAD", ""}],
-      [{"MODULE_PATH", Application.app_dir(:nerves_key_pkcs11, ["priv", "nerves_key_pkcs11.so"])}]
-    )
+    nk = Application.app_dir(:nerves_key_pkcs11, ["priv", "nerves_key_pkcs11.so"])
+
+    # Load the p11 adapter and configure it with the nerves_key_pkcs11.so implementation
+    with {:ok, engine} <- :crypto.ensure_engine_loaded("pkcs11", libpkcs),
+         :ok <- :crypto.engine_ctrl_cmd_string(engine, "MODULE_PATH", nk) do
+      {:ok, engine}
+    end
   end
 
   @doc """

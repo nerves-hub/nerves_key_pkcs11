@@ -7,6 +7,17 @@ defmodule NervesKey.PKCS11Test do
     assert is_reference(engine)
   end
 
+  test "can load an engine twice" do
+    # This tests the logic that prevents multiple loads if using libopenssl
+    # 1.1.1m or later.  Those versions of libopenssl will fail the second
+    # engine load if attempted.
+    {:ok, engine} = NervesKey.PKCS11.load_engine()
+    assert is_reference(engine)
+
+    {:ok, engine2} = NervesKey.PKCS11.load_engine()
+    assert is_reference(engine2)
+  end
+
   test "creates a key map" do
     engine = make_ref()
     key = NervesKey.PKCS11.private_key(engine, i2c: 0)
