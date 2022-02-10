@@ -1,7 +1,7 @@
 defmodule NervesKey.PKCS11.MixProject do
   use Mix.Project
 
-  @version "1.0.1"
+  @version "1.1.0"
   @source_url "https://github.com/nerves-hub/nerves_key_pkcs11"
 
   def project do

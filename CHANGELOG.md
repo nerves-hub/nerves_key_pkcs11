@@ -1,6 +1,24 @@
 # Changelog
 
-## v1.0.1 - 2020-10-28
+## v1.1.0 - 2022-02-09
+
+This release adds support for the Trust & Go versions of the ATECC608B. These
+chips reside at a different I2C address than normal ATECC parts. To use them,
+you will need to add a parameter to the `NervesKey.PKCS11.private_key/2` call in
+your code:
+
+```elixir
+NervesKey.PKCS11.private_key(engine, i2c: 1, type: :trust_and_go),
+```
+
+* Changes
+  * Support Trust and Go modules
+
+* Bug fixes
+  * Ensure that the OpenSSL engine can't be loaded more than once.  OpenSSL
+    1.1.1m and later return an error on the second load.
+
+## v1.0.1 - 2021-10-28
 
 * Changes
   * Reduce Makefile output
