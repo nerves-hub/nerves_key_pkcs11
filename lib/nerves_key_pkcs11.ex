@@ -16,8 +16,12 @@ defmodule NervesKey.PKCS11 do
 
   * `:i2c` - which I2C bus
   * `:certificate` - which NervesKey certificate to use (`:primary` or `:aux`)
+  * `:type` - if using pre-provisioned ATECC608B Trust and Go parts, specify `:trust_and_go`
   """
-  @type option :: {:i2c, i2c_bus()} | {:certificate, certificate_pair()}
+  @type option ::
+          {:i2c, i2c_bus()}
+          | {:certificate, certificate_pair()}
+          | {:type, :nerves_key | :trust_and_go}
 
   @doc """
   Load the OpenSSL engine

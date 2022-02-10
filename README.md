@@ -103,13 +103,16 @@ options, you'll have something like this:
 
 ```elixir
 [
-  key: NervesKey.PKCS11.private_key(engine, i2c: 1),
+  key: NervesKey.PKCS11.private_key(engine, i2c: 1, type: :nerves_key),
   certfile: "device-cert.pem",
 ]
 ```
 
 The `NervesKey.PKCS11.private_key/2` helper method will create the appropriate
 map so that Erlang's `:crypto` library can properly call into OpenSSL.
+
+If you are using a pre-provisioned ATECC608B or similar that's labelled a Trust
+and Go part, specify `:trust_and_go` for the `:type`.
 
 ## Sharing the NervesKey
 
