@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.1.1 - 2022-10-07
+
+* Changes
+  * Fix Trust and Go device detection in cases where I2C buses don't exist
+    before the one that has the T&G part. This was a bug in the detection logic
+    where it was really easy to get lucky and have a device work even though the
+    logic was wrong. Thanks @tonnenpinguin and @KlausGrössinger for help
+    debugging this issue!
+  * Allow for more sessions to be opened. Thanks @Dodain for finding and fixing
+    the issue.
+
 ## v1.1.0 - 2022-02-09
 
 This release adds support for the Trust & Go versions of the ATECC608B. These
