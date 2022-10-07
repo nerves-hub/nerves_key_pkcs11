@@ -198,7 +198,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(
             return CKR_BUFFER_TOO_SMALL;
 
         if (pSlotList)
-            pSlotList[count] = i + DEVICE_INDEX_SPLIT;
+            pSlotList[count] = pSlotList[i] + DEVICE_INDEX_SPLIT;
 
         count ++;
     }
