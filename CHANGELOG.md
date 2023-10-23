@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.2.0 - 2022-10-23
+
+* Changes
+  * Support OpenSSL 3 by allowing the new engine shared library paths. This is a
+    very simple change for `nerves_key_pkcs11`,  but it requires Erlang 26.2
+    (expected) to  work. Until then, manually patching Erlang 26.1.2 to enable
+    OpenSSL engine support is the only way to use this new functionality.
+
 ## v1.1.1 - 2022-10-07
 
 * Changes
