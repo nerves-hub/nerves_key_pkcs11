@@ -88,7 +88,9 @@ defmodule NervesKey.PKCS11 do
   defp pkcs11_path() do
     [
       "/usr/lib/engines-1.1/libpkcs11.so",
+      "/usr/lib/engines-3/libpkcs11.so",
       "/usr/lib/x86_64-linux-gnu/engines-1.1/libpkcs11.so",
+      "/usr/lib/x86_64-linux-gnu/engines-3/libpkcs11.so",
       "/usr/lib/engines/libpkcs11.so"
     ]
     |> Enum.find(&File.exists?/1)
