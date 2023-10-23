@@ -5,10 +5,11 @@ latest: &latest
 
 tags: &tags
   [
-    1.15.7-erlang-26.1.2-ubuntu-jammy-20230126,
-    1.14.5-erlang-25.3.2.7-ubuntu-jammy-20230126,
-    1.13.4-erlang-24.3.4.14-ubuntu-jammy-20230126,
-    1.12.3-erlang-24.3.4.14-ubuntu-jammy-20230126,
+    # Use focal instead of jammy for now for OpenSSL 1.1.1
+    1.15.7-erlang-26.1.2-ubuntu-focal-20230126,
+    1.14.5-erlang-25.3.2.7-ubuntu-focal-20230126,
+    1.13.4-erlang-24.3.4.14-ubuntu-focal-20230126,
+    1.12.3-erlang-24.3.4.14-ubuntu-focal-20230126,
     1.11.4-erlang-23.3.4.19-ubuntu-focal-20230126
   ]
 
