@@ -1,7 +1,7 @@
 version: 2.1
 
 latest: &latest
-  pattern: "^1.14.5-erlang-26.*$"
+  pattern: "^1.15.7-erlang-26.*$"
 
 jobs:
   build-test:
@@ -18,7 +18,7 @@ jobs:
           name: Install system dependencies
           command: |
             apt update
-            apt install -y build-essential unzip libengine-pkcs11-openssl1.1
+            apt install -y build-essential unzip libengine-pkcs11-openssl libengine-pkcs11-openssl1.1
       - checkout
       - run:
           name: Install hex and rebar
@@ -55,6 +55,7 @@ workflows:
           matrix:
             parameters:
               tag: [
+                1.15.7-erlang-26.1.2-ubuntu-jammy-20230126,
                 1.14.5-erlang-25.3.2.7-ubuntu-jammy-20230126,
                 1.13.4-erlang-24.3.4.14-ubuntu-jammy-20230126,
                 1.12.3-erlang-24.3.4.14-ubuntu-jammy-20230126,
