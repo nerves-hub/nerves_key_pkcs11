@@ -395,7 +395,7 @@ cleanup:
 }
 
 /**
- * Derive a public key from the private key that's stored in the specified slot.
+ * Sign a 32-byte buffer using the private key stored in the specified slot.
  *
  * @param fd the fd openned by atecc508a_open
  * @param addr which i2c address
