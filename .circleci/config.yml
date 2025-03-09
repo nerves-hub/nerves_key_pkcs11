@@ -1,16 +1,16 @@
 version: 2.1
 
 latest: &latest
-  pattern: "^1.15.7-erlang-26.*$"
+  pattern: "^1.18.*-erlang-27.*$"
 
 tags: &tags
   [
-    # Use focal instead of jammy for now for OpenSSL 1.1.1
+    1.18.3-erlang-27.3-ubuntu-jammy-20250126,
+    1.17.3-erlang-27.2-ubuntu-jammy-20240808,
+    1.16.2-erlang-26.2.4-ubuntu-jammy-20240405,
     1.15.7-erlang-26.1.2-ubuntu-focal-20230126,
     1.14.5-erlang-25.3.2.7-ubuntu-focal-20230126,
-    1.13.4-erlang-24.3.4.14-ubuntu-focal-20230126,
-    1.12.3-erlang-24.3.4.14-ubuntu-focal-20230126,
-    1.11.4-erlang-23.3.4.19-ubuntu-focal-20230126
+    1.13.4-erlang-24.3.4.14-ubuntu-focal-20230126
   ]
 
 jobs:
@@ -59,7 +59,7 @@ jobs:
 
   automerge:
     docker:
-        - image: alpine:3.18.4
+      - image: alpine:3.21.3
     steps:
       - run:
           name: Install GitHub CLI
