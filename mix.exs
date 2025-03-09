@@ -40,11 +40,12 @@ defmodule NervesKey.PKCS11.MixProject do
       files: [
         "CHANGELOG.md",
         "lib",
+        "LICENSES/*",
         "src/*.[ch]",
+        "Makefile",
         "mix.exs",
         "README.md",
-        "LICENSE",
-        "Makefile"
+        "REUSE.toml"
       ],
       licenses: ["BSD-2-Clause"],
       links: %{"GitHub" => @source_url}

@@ -1,6 +1,9 @@
 /*
- * Copyright (c) 2018 Frank Hunleth
- * All rights reserved.
+ * SPDX-FileCopyrightText: 2018 Frank Hunleth
+ * SPDX-FileCopyrightText: 2022 Connor Rigby
+ * SPDX-FileCopyrightText: 2024 Keith Salisbury
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are

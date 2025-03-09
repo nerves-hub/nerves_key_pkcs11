@@ -1,3 +1,8 @@
+# SPDX-FileCopyrightText: 2018 Frank Hunleth
+# SPDX-FileCopyrightText: 2022 Connor Rigby
+#
+# SPDX-License-Identifier: BSD-2-Clause
+#
 defmodule NervesKey.PKCS11Test do
   use ExUnit.Case
   doctest NervesKey.PKCS11

@@ -1,3 +1,8 @@
+# SPDX-FileCopyrightText: 2018 Frank Hunleth
+# SPDX-FileCopyrightText: 2022 Connor Rigby
+#
+# SPDX-License-Identifier: BSD-2-Clause
+#
 defmodule NervesKey.PKCS11 do
   @moduledoc """
   This module contains helper methods for loading and using the PKCS #11

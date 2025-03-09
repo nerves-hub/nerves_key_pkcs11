@@ -1,7 +1,9 @@
 # NervesKey.PKCS11
 
-[![CircleCI](https://circleci.com/gh/nerves-hub/nerves_key_pkcs11.svg?style=svg)](https://circleci.com/gh/nerves-hub/nerves_key_pkcs11)
 [![Hex version](https://img.shields.io/hexpm/v/nerves_key_pkcs11.svg "Hex version")](https://hex.pm/packages/nerves_key_pkcs11)
+[![API docs](https://img.shields.io/hexpm/v/nerves_key_pkcs11.svg?label=hexdocs "API docs")](https://hexdocs.pm/nerves_key_pkcs11/NervesKey.PKCS11.html)
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/nerves-hub/nerves_key_pkcs11/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/nerves-hub/nerves_key_pkcs11/tree/main)
+[![REUSE status](https://api.reuse.software/badge/github.com/nerves-hub/nerves_key_pkcs11)](https://api.reuse.software/info/github.com/nerves-hub/nerves_key_pkcs11)
 
 This is a minimal implementation of [PKCS #11](https://en.wikipedia.org/wiki/PKCS_11)
 for using the NervesKey with OpenSSL and other programs.  The NervesKey is a specific
