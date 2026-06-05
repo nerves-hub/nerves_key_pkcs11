@@ -8,7 +8,7 @@ defmodule NervesKey.PKCS11.MixProject do
     [
       app: :nerves_key_pkcs11,
       version: @version,
-      elixir: "~> 1.13",
+      elixir: "~> 1.15",
       description: description(),
       package: package(),
       source_url: @source_url,
@@ -18,17 +18,16 @@ defmodule NervesKey.PKCS11.MixProject do
       dialyzer: dialyzer(),
       docs: docs(),
       start_permanent: Mix.env() == :prod,
-      deps: deps(),
-      preferred_cli_env: %{
-        docs: :docs,
-        "hex.publish": :docs,
-        "hex.build": :docs
-      }
+      deps: deps()
     ]
   end
 
   def application do
     [extra_applications: [:crypto]]
+  end
+
+  def cli do
+    [preferred_envs: %{docs: :docs, "hex.publish": :docs, "hex.build": :docs}]
   end
 
   defp description do
