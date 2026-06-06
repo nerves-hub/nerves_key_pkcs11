@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.3.0 - 2026-06-06
+
+* Changes
+  * Drop support for Elixir 1.14 and earlier. No changes were made, but
+    dependency updates make old Elixir versions more difficult to support now.
+  * Add copyright and license headers throughout for REUSE compliance. No change
+    in license.
+
 ## v1.2.0 - 2022-10-23
 
 * Changes
