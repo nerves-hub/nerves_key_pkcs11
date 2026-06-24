@@ -52,6 +52,11 @@
 
 #define NKCS11_SESSION_MAGIC 0x4e727673
 
+/* The one ATECC key is exposed as two logical objects (private and public key).
+   CKA_CLASS is derived from these handles so it is stable per object handle. */
+#define OBJECT_HANDLE_PRIVATE_KEY 1
+#define OBJECT_HANDLE_PUBLIC_KEY  2
+
 static CK_INFO library_info = {
     .cryptokiVersion = CRYTOKI_VERSION,
     .manufacturerID = "NervesKey",
@@ -102,6 +107,12 @@ struct nerves_key_session {
 
     CK_BBOOL has_cached_public_key;
     CK_BYTE cached_public_key[65];
+
+    /* CKA_CLASS filter recorded by C_FindObjectsInit so C_FindObjects only
+       emits the handle(s) matching the search. libp11 >= 0.4.12 locates each
+       key by CKA_CLASS. */
+    CK_BBOOL find_class_filtered;
+    CK_OBJECT_CLASS find_class;
 };
 
 static struct nerves_key_session session;
@@ -424,10 +435,17 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSessionInfo)(
     CK_SESSION_INFO_PTR pInfo
 )
 {
-    UNUSED(hSession);
-    UNUSED(pInfo);
-    UNIMPLEMENTED();
-    return CKR_FUNCTION_FAILED;
+    ENTER();
+    if (hSession != NKCS11_SESSION_MAGIC || session.open_count == 0)
+        return CKR_SESSION_HANDLE_INVALID;
+    if (pInfo == NULL_PTR)
+        return CKR_ARGUMENTS_BAD;
+
+    pInfo->slotID = session.slot_id;
+    pInfo->state = CKS_RO_PUBLIC_SESSION;
+    pInfo->flags = CKF_SERIAL_SESSION;
+    pInfo->ulDeviceError = 0;
+    return CKR_OK;
 }
 
 CK_DEFINE_FUNCTION(CK_RV, C_GetOperationState)(
@@ -547,7 +565,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetAttributeValue)(
     CK_ULONG ulCount
 )
 {
-    UNUSED(hObject);
     ENTER();
     if (hSession != NKCS11_SESSION_MAGIC || session.open_count == 0)
         return CKR_SESSION_HANDLE_INVALID;
@@ -578,19 +595,24 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetAttributeValue)(
 
         case CKA_LABEL:
             INFO("LABEL");
-            // Description of the object (default empty).
+            // Description of the object. PKCS#11 labels are NOT NUL-terminated,
+            // so report the exact byte length and copy without the terminator.
+        {
+            char label[16];
+            int label_len = snprintf(label, sizeof(label), "%lu", session.slot_id);
             if (pTemplate[i].pValue == NULL_PTR) {
-                pTemplate[i].ulValueLen = 3;
+                pTemplate[i].ulValueLen = (CK_ULONG) label_len;
                 rv = CKR_OK;
-            } else if (pTemplate[i].ulValueLen >= 3) {
-                pTemplate[i].ulValueLen = 3;
-                sprintf((char *) pTemplate[i].pValue, "%lu", session.slot_id);
+            } else if (pTemplate[i].ulValueLen >= (CK_ULONG) label_len) {
+                pTemplate[i].ulValueLen = (CK_ULONG) label_len;
+                memcpy(pTemplate[i].pValue, label, (size_t) label_len);
                 rv = CKR_OK;
             } else {
                 pTemplate[i].ulValueLen = (CK_ULONG) -1;
                 rv = CKR_BUFFER_TOO_SMALL;
             }
             break;
+        }
 
         case CKA_ID:
             INFO("ID");
@@ -613,13 +635,18 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetAttributeValue)(
         case CKA_EC_PARAMS:
             // DER-encoding of an ANSI X9.62 Parameters value.
         {
-            static const CK_BYTE prime256v1[] = "\x06\x08\x2a\x86\x48\xce\x3d\x03\x01\x07";
+            // OID 1.2.840.10045.3.1.7 (prime256v1). Use a byte array (NOT a
+            // string literal) so the length is exactly 10, with no trailing NUL.
+            static const CK_BYTE prime256v1[] = {
+                0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07
+            };
+            const unsigned long params_len = sizeof(prime256v1);
             if (pTemplate[i].pValue == NULL_PTR) {
-                pTemplate[i].ulValueLen = sizeof(prime256v1);
+                pTemplate[i].ulValueLen = params_len;
                 rv = CKR_OK;
-            } else if (pTemplate[i].ulValueLen >= sizeof(prime256v1)) {
-                pTemplate[i].ulValueLen = sizeof(prime256v1);
-                memcpy(pTemplate[i].pValue, prime256v1, sizeof(prime256v1));
+            } else if (pTemplate[i].ulValueLen >= params_len) {
+                pTemplate[i].ulValueLen = params_len;
+                memcpy(pTemplate[i].pValue, prime256v1, params_len);
                 rv = CKR_OK;
             } else {
                 pTemplate[i].ulValueLen = (CK_ULONG) -1;
@@ -628,30 +655,37 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetAttributeValue)(
             break;
         }
         case CKA_EC_POINT:
-            // DER-encoding of ANSI X9.62 ECPoint value ''Q''.
+            // PKCS#11 requires the ECPoint as a DER-encoded ASN.1 OCTET STRING
+            // wrapping the raw uncompressed point (0x04 || X || Y). Emit:
+            //   04 41 <65-byte point>   (tag, length=0x41=65, point)
+            // Returning the bare 65-byte point corrupts libp11 >= 0.4.12.
         {
-            const unsigned long public_key_len = sizeof(session.cached_public_key);
+            const unsigned long point_len = sizeof(session.cached_public_key); // 65
+            const unsigned long der_len = point_len + 2;                       // 67
 
             if (pTemplate[i].pValue == NULL_PTR) {
-                pTemplate[i].ulValueLen = public_key_len;
+                pTemplate[i].ulValueLen = der_len;
                 rv = CKR_OK;
-            } else if (pTemplate[i].ulValueLen >= public_key_len) {
-                pTemplate[i].ulValueLen = public_key_len;
-
-                if (session.has_cached_public_key) {
-                    memcpy(pTemplate[i].pValue, session.cached_public_key, public_key_len);
-                    rv = CKR_OK;
-                } else {
-                    // DER-encoding of the key starts with 0x04
-                    session.cached_public_key[0] = 0x04;
-                    if (atecc508a_derive_public_key(session.fd, session.addr, 0, &session.cached_public_key[1]) < 0) {
+            } else if (pTemplate[i].ulValueLen >= der_len) {
+                rv = CKR_OK;
+                if (!session.has_cached_public_key) {
+                    session.cached_public_key[0] = 0x04; // uncompressed point prefix
+                    if (atecc508a_derive_public_key(session.fd, session.addr, 0,
+                                                    &session.cached_public_key[1]) < 0) {
                         INFO("Error getting public key!");
                         rv = CKR_DEVICE_ERROR;
                     } else {
                         session.has_cached_public_key = CK_TRUE;
-                        memcpy(pTemplate[i].pValue, session.cached_public_key, public_key_len);
-                        rv = CKR_OK;
                     }
+                }
+                if (rv == CKR_OK) {
+                    CK_BYTE *out = (CK_BYTE *) pTemplate[i].pValue;
+                    out[0] = 0x04;                 // ASN.1 OCTET STRING tag
+                    out[1] = (CK_BYTE) point_len;  // length (0x41 == 65)
+                    memcpy(out + 2, session.cached_public_key, point_len);
+                    pTemplate[i].ulValueLen = der_len;
+                } else {
+                    pTemplate[i].ulValueLen = (CK_ULONG) -1;
                 }
             } else {
                 pTemplate[i].ulValueLen = (CK_ULONG) -1;
@@ -689,6 +723,26 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetAttributeValue)(
                 rv = CKR_BUFFER_TOO_SMALL;
             }
             break;
+
+        case CKA_CLASS:
+            // Class is a stable property of the handle: the private and public
+            // key are distinct handles over the one ATECC key.
+        {
+            CK_OBJECT_CLASS klass =
+                (hObject == OBJECT_HANDLE_PUBLIC_KEY) ? CKO_PUBLIC_KEY : CKO_PRIVATE_KEY;
+            if (pTemplate[i].pValue == NULL_PTR) {
+                pTemplate[i].ulValueLen = sizeof(CK_OBJECT_CLASS);
+                rv = CKR_OK;
+            } else if (pTemplate[i].ulValueLen >= sizeof(CK_OBJECT_CLASS)) {
+                pTemplate[i].ulValueLen = sizeof(CK_OBJECT_CLASS);
+                *((CK_OBJECT_CLASS *) pTemplate[i].pValue) = klass;
+                rv = CKR_OK;
+            } else {
+                pTemplate[i].ulValueLen = (CK_ULONG) -1;
+                rv = CKR_BUFFER_TOO_SMALL;
+            }
+            break;
+        }
 
         default:
             pTemplate[i].ulValueLen = (CK_ULONG) -1;
@@ -737,12 +791,25 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(
     CK_ULONG ulCount
 )
 {
-    UNUSED(pTemplate);
-    UNUSED(ulCount);
     ENTER();
 
     if (hSession != NKCS11_SESSION_MAGIC || session.open_count == 0)
         return CKR_SESSION_HANDLE_INVALID;
+
+    /* Record the CKA_CLASS filter (if any) so C_FindObjects returns only the
+       matching key handle(s). A NULL template with ulCount > 0 is invalid. */
+    if (pTemplate == NULL_PTR && ulCount > 0)
+        return CKR_ARGUMENTS_BAD;
+
+    session.find_class_filtered = CK_FALSE;
+    for (CK_ULONG i = 0; i < ulCount; i++) {
+        if (pTemplate[i].type == CKA_CLASS &&
+            pTemplate[i].pValue != NULL_PTR &&
+            pTemplate[i].ulValueLen >= sizeof(CK_OBJECT_CLASS)) {
+            session.find_class_filtered = CK_TRUE;
+            session.find_class = *((CK_OBJECT_CLASS *) pTemplate[i].pValue);
+        }
+    }
 
     session.find_index = 0;
     return CKR_OK;
@@ -759,13 +826,18 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjects)(
     if (hSession != NKCS11_SESSION_MAGIC || session.open_count == 0)
         return CKR_SESSION_HANDLE_INVALID;
 
-    if (ulMaxObjectCount > 0 && session.find_index == 0) {
-        *phObject = '0' + session.slot_id;
-        *pulObjectCount = 1;
-        session.find_index++;
-    } else {
-        *pulObjectCount = 0;
+    static const CK_OBJECT_CLASS classes[2] = { CKO_PRIVATE_KEY, CKO_PUBLIC_KEY };
+    static const CK_OBJECT_HANDLE handles[2] = {
+        OBJECT_HANDLE_PRIVATE_KEY, OBJECT_HANDLE_PUBLIC_KEY
+    };
+
+    CK_ULONG count = 0;
+    while (session.find_index < 2 && count < ulMaxObjectCount) {
+        CK_ULONG idx = session.find_index++;
+        if (!session.find_class_filtered || session.find_class == classes[idx])
+            phObject[count++] = handles[idx];
     }
+    *pulObjectCount = count;
     return CKR_OK;
 }
 
