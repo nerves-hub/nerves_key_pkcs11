@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.3.1 - 2026-06-25
+
+* Changes
+  * Fix issues preventing the use of libp11 versions after 0.4.12. (@lawik)
+
 ## v1.3.0 - 2026-06-06
 
 * Changes
