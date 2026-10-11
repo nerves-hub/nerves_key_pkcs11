@@ -2,6 +2,7 @@
 
 [![Hex version](https://img.shields.io/hexpm/v/nerves_key_pkcs11.svg "Hex version")](https://hex.pm/packages/nerves_key_pkcs11)
 [![API docs](https://img.shields.io/hexpm/v/nerves_key_pkcs11.svg?label=hexdocs "API docs")](https://nerves-key-pkcs11.hexdocs.pm/NervesKey.PKCS11.html)
+[![Nerves compatibility](https://compatibility.nerves-project.org/badge/nerves_key_pkcs11.svg)](https://compatibility.nerves-project.org/packages/nerves_key_pkcs11)
 [![CircleCI](https://dl.circleci.com/status-badge/img/gh/nerves-hub/nerves_key_pkcs11/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/nerves-hub/nerves_key_pkcs11/tree/main)
 [![REUSE status](https://api.reuse.software/badge/github.com/nerves-hub/nerves_key_pkcs11)](https://api.reuse.software/info/github.com/nerves-hub/nerves_key_pkcs11)
 
